@@ -23,7 +23,7 @@ import type { TokenUsage } from "../providers/types.js";
 
 export interface CommandResult {
   output: string;
-  action?: "clear" | "exit" | "resume" | "setup" | "switch-view" | "pick-provider" | "pick-model";
+  action?: "clear" | "exit" | "resume" | "setup" | "switch-view" | "pick-provider" | "pick-model" | "setup-reddit" | "setup-x";
   data?: any;
 }
 
@@ -334,6 +334,21 @@ cmd("config", ["settings", "cfg"], "Config", "Show current configuration", () =>
   return {
     output: `OpenAgent Configuration\n\n  Provider:     ${settings.provider}\n  Model:        ${settings.model}\n  Mode:         ${settings.responseMode}\n  Permissions:  ${meta.label} [${meta.symbol}]\n  Config dir:   ${getConfigDir()}\n\nEdit: ~/.openagent/config.json`,
   };
+});
+
+cmd("max-tokens", ["tokens-limit", "maxtokens"], "Config", "Set max output tokens per response", (args) => {
+  const settings = loadSettings();
+  if (!args) {
+    const current = settings.maxTokens || 16000;
+    return { output: `Max tokens: ${current}\nUsage: /max-tokens <number>  (e.g. /max-tokens 8000)` };
+  }
+  const num = parseInt(args);
+  if (isNaN(num) || num < 100 || num > 200000) {
+    return { output: "Invalid. Must be between 100 and 200000." };
+  }
+  settings.maxTokens = num;
+  saveSettings(settings);
+  return { output: `Max tokens set to ${num}` };
 });
 
 cmd("response-mode", ["concise", "explanative", "style"], "Config", "Switch between concise and explanative", (args) => {
@@ -780,16 +795,12 @@ cmd("tweet", ["x", "post"], "Social", "Post to X (Twitter)", (args) => {
   return { output: "Ask the AI to handle X posting — it has the XPost tool." };
 });
 
-cmd("setup-reddit", ["connect-reddit"], "Social", "Connect your Reddit account", async () => {
-  const { setupReddit } = await import("../tools/RedditTool/auth.js");
-  const result = await setupReddit();
-  return { output: result };
+cmd("setup-reddit", ["connect-reddit"], "Social", "Connect your Reddit account", () => {
+  return { output: "", action: "setup-reddit" };
 });
 
-cmd("setup-x", ["connect-x", "setup-twitter", "connect-twitter"], "Social", "Connect your X (Twitter) account", async () => {
-  const { setupX } = await import("../tools/XTool/auth.js");
-  const result = await setupX();
-  return { output: result };
+cmd("setup-x", ["connect-x", "setup-twitter", "connect-twitter"], "Social", "Connect your X (Twitter) account", () => {
+  return { output: "", action: "setup-x" };
 });
 
 cmd("debug", ["inspect"], "Dev", "Debug mode — show raw API requests/responses", () => {

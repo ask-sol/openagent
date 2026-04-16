@@ -10,6 +10,7 @@ export interface OpenAgentSettings {
   apiKey: string;
   baseUrl?: string;
   responseMode: ResponseMode;
+  maxTokens?: number;
   setupComplete: boolean;
   mcpServers?: Record<string, McpServerConfig>;
   reddit?: {

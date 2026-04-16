@@ -73,7 +73,8 @@ export async function runQueryLoop(
   messages: ProviderMessage[],
   sessionId: string,
   callbacks: QueryCallbacks,
-  thinking = false
+  thinking = false,
+  abortSignal?: AbortSignal
 ): Promise<{ messages: ProviderMessage[]; totalUsage: TokenUsage }> {
   const settings = loadSettings();
   const cwd = process.cwd();
@@ -98,6 +99,10 @@ export async function runQueryLoop(
   const maxLoops = 50;
 
   while (loopCount < maxLoops) {
+    if (abortSignal?.aborted) {
+      callbacks.onError("Interrupted.");
+      break;
+    }
     loopCount++;
 
     let responseText = "";
@@ -110,10 +115,11 @@ export async function runQueryLoop(
         apiKey: settings.apiKey,
         baseUrl: settings.baseUrl,
         systemPrompt,
-        maxTokens: Math.min(provider.config.models.find((m) => m.id === settings.model)?.maxOutput || 8192, 16000),
+        maxTokens: settings.maxTokens || Math.min(provider.config.models.find((m) => m.id === settings.model)?.maxOutput || 8192, 16000),
       });
 
       for await (const chunk of stream) {
+        if (abortSignal?.aborted) break;
         switch (chunk.type) {
           case "text":
             responseText += chunk.text || "";

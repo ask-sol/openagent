@@ -25,6 +25,8 @@ import {
 } from "../utils/terminal.js";
 import { ProviderPicker } from "./ProviderPicker.js";
 import { ModelPicker } from "./ModelPicker.js";
+import { RedditSetup } from "./RedditSetup.js";
+import { XSetup } from "./XSetup.js";
 
 interface MessageDisplay {
   role: "user" | "assistant" | "tool" | "system";
@@ -51,13 +53,15 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
   const [error, setError] = useState("");
   const [thinking, setThinking] = useState(initialThinking);
   const [settings, setSettings] = useState(initialSettings);
-  const [pickerView, setPickerView] = useState<"none" | "provider" | "model">("none");
+  const [pickerView, setPickerView] = useState<"none" | "provider" | "model" | "reddit" | "x">("none");
   const [permissionPrompt, setPermissionPrompt] = useState<{ name: string; desc: string } | null>(null);
   const permissionResolveRef = useRef<((allowed: boolean) => void) | null>(null);
 
   const messagesRef = useRef<ProviderMessage[]>([]);
   const streamingTextRef = useRef("");
   const messageCountRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
+  const [queuedMessages, setQueuedMessages] = useState<string[]>([]);
   const { exit } = useApp();
   const { stdout } = useStdout();
   const statusWord = useStatusWord(isProcessing);
@@ -79,7 +83,32 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
         setPermissionPrompt(null);
         return;
       }
+      if (isProcessing && abortRef.current) {
+        abortRef.current.abort();
+        return;
+      }
       exit();
+      return;
+    }
+
+    if (key.escape) {
+      if (isProcessing && abortRef.current) {
+        abortRef.current.abort();
+        setDisplayMessages((prev) => [
+          ...prev,
+          { role: "system", content: "Interrupted." },
+        ]);
+        return;
+      }
+    }
+
+    if (key.escape && key.shift && isProcessing && input.trim()) {
+      setQueuedMessages((prev) => [...prev, input.trim()]);
+      setDisplayMessages((prev) => [
+        ...prev,
+        { role: "system", content: `Queued: ${input.trim()}` },
+      ]);
+      setInput("");
       return;
     }
 
@@ -192,6 +221,16 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
           return;
         }
 
+        if (result.action === "setup-reddit") {
+          setPickerView("reddit");
+          return;
+        }
+
+        if (result.action === "setup-x") {
+          setPickerView("x");
+          return;
+        }
+
         if (result.output) {
           setDisplayMessages((prev) => [...prev, { role: "system", content: result.output }]);
         }
@@ -216,6 +255,8 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
       streamingTextRef.current = "";
       setActiveTool("");
       setError("");
+      const abortController = new AbortController();
+      abortRef.current = abortController;
 
       const callbacks: QueryCallbacks = {
         onText: (text) => {
@@ -305,7 +346,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
       };
 
       try {
-        const result = await runQueryLoop(provider, messagesRef.current, sessionId, callbacks, thinking);
+        const result = await runQueryLoop(provider, messagesRef.current, sessionId, callbacks, thinking, abortController.signal);
         messagesRef.current = result.messages;
         messageCountRef.current = result.messages.length;
 
@@ -335,7 +376,17 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
 
       setStreamingText("");
       streamingTextRef.current = "";
+      abortRef.current = null;
       setIsProcessing(false);
+
+      setQueuedMessages((prev) => {
+        if (prev.length > 0) {
+          const [next, ...rest] = prev;
+          setTimeout(() => handleSubmit(next), 100);
+          return rest;
+        }
+        return prev;
+      });
     },
     [settings, sessionId, exit, thinking, tokenUsage]
   );
@@ -423,6 +474,34 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
     return (
       <Box flexDirection="column" width={termSize.columns}>
         <ModelPicker onComplete={handlePickerComplete} onCancel={handlePickerCancel} />
+      </Box>
+    );
+  }
+
+  if (pickerView === "reddit") {
+    return (
+      <Box flexDirection="column" width={termSize.columns}>
+        <RedditSetup
+          onComplete={(msg) => {
+            setPickerView("none");
+            setDisplayMessages((prev) => [...prev, { role: "system", content: msg }]);
+          }}
+          onCancel={handlePickerCancel}
+        />
+      </Box>
+    );
+  }
+
+  if (pickerView === "x") {
+    return (
+      <Box flexDirection="column" width={termSize.columns}>
+        <XSetup
+          onComplete={(msg) => {
+            setPickerView("none");
+            setDisplayMessages((prev) => [...prev, { role: "system", content: msg }]);
+          }}
+          onCancel={handlePickerCancel}
+        />
       </Box>
     );
   }
@@ -516,8 +595,10 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
         <Text dimColor>
           {permMode.label} [{permMode.symbol}]
           {thinking ? " • think" : ""}
+          {queuedMessages.length > 0 ? ` • ${queuedMessages.length} queued` : ""}
           {" • "}{formatTokens(tokenUsage.inputTokens + tokenUsage.outputTokens)} tokens
           {" • "}{modelDisplay}
+          {" • esc=stop shift+esc=queue"}
         </Text>
       </Box>
     </Box>
