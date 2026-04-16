@@ -13,6 +13,7 @@ const config: ProviderConfig = {
   id: "openai",
   name: "OpenAI",
   description: "GPT-4o, GPT-4.1, o1, o3 and more",
+  category: "cloud",
   apiKeyEnvVar: "OPENAI_API_KEY",
   apiKeyUrl: "https://platform.openai.com/api-keys",
   models: [

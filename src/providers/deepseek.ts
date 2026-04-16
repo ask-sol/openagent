@@ -13,6 +13,7 @@ const config: ProviderConfig = {
   id: "deepseek",
   name: "DeepSeek",
   description: "DeepSeek V3, R1, Coder — high quality, low cost",
+  category: "cloud",
   apiKeyEnvVar: "DEEPSEEK_API_KEY",
   apiKeyUrl: "https://platform.deepseek.com/api_keys",
   models: [

@@ -13,6 +13,7 @@ const config: ProviderConfig = {
   id: "openrouter",
   name: "OpenRouter",
   description: "One key, hundreds of models — GPT, Claude, Gemini, Llama, Mistral, and more",
+  category: "cloud",
   apiKeyEnvVar: "OPENROUTER_API_KEY",
   apiKeyUrl: "https://openrouter.ai/keys",
   models: [

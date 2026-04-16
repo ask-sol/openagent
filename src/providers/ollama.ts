@@ -13,6 +13,7 @@ const config: ProviderConfig = {
   id: "ollama",
   name: "Ollama (Local)",
   description: "Run models locally — Llama, Mistral, CodeLlama, Qwen",
+  category: "local",
   apiKeyEnvVar: "OLLAMA_HOST",
   apiKeyUrl: "https://ollama.com/download",
   models: [

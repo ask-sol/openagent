@@ -60,10 +60,13 @@ export interface ProviderResponse {
   stopReason: "end_turn" | "tool_use" | "max_tokens" | "error";
 }
 
+export type ProviderCategory = "cloud" | "local";
+
 export interface ProviderConfig {
   id: string;
   name: string;
   description: string;
+  category: ProviderCategory;
   apiKeyEnvVar: string;
   apiKeyUrl: string;
   models: ProviderModel[];

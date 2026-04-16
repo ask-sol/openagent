@@ -14,6 +14,7 @@ const config: ProviderConfig = {
   id: "anthropic",
   name: "Anthropic",
   description: "Claude Opus 4, Sonnet 4, Haiku 3.5",
+  category: "cloud",
   apiKeyEnvVar: "ANTHROPIC_API_KEY",
   apiKeyUrl: "https://console.anthropic.com/settings/keys",
   models: [

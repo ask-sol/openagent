@@ -5,7 +5,7 @@ import Spinner from "ink-spinner";
 import { useStatusWord } from "../utils/statusWords.js";
 import { getProvider } from "../providers/index.js";
 import { loadSettings, saveSettings, type OpenAgentSettings } from "../config/settings.js";
-import { getEffectiveMode, getModeMeta, addRule } from "../config/permissions.js";
+import { getEffectiveMode, getModeMeta, addRule, loadPermissions, savePermissions } from "../config/permissions.js";
 import { runQueryLoop, describeToolCall, type QueryCallbacks } from "../query.js";
 import {
   createSession,
@@ -94,6 +94,17 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
       return;
     }
 
+    if (key.shift && key.tab) {
+      const state = loadPermissions();
+      const modes: Array<"standard" | "cautious" | "unrestricted"> = ["standard", "cautious", "unrestricted"];
+      const idx = modes.indexOf(state.mode);
+      state.mode = modes[(idx + 1) % modes.length];
+      savePermissions(state);
+      setPermModeKey((k: number) => k + 1);
+      setDisplayMessages((prev: any) => [...prev, { role: "system", content: `Mode: ${state.mode}` }]);
+      return;
+    }
+
     if (key.ctrl && ch === "c") {
       if (permissionPrompt && permissionResolveRef.current) {
         permissionResolveRef.current(false);
@@ -167,10 +178,11 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
     return matches.slice(0, 5).map((m) => `/${m.name}`).join("  ") + `  +${matches.length - 5} more`;
   }, [input]);
 
+  const [permModeKey, setPermModeKey] = useState(0);
   const permMode = useMemo(() => {
     const mode = getEffectiveMode();
-    return getModeMeta(mode);
-  }, []);
+    return { ...getModeMeta(mode), mode };
+  }, [permModeKey]);
 
   const handleSubmit = useCallback(
     async (value: string) => {
@@ -311,6 +323,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
         if (result.output) {
           setDisplayMessages((prev) => [...prev, { role: "system", content: result.output }]);
         }
+        setPermModeKey((k) => k + 1);
         return;
       }
 
@@ -351,7 +364,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
             permissionResolveRef.current = resolve;
           });
         },
-        onToolEnd: (name, _id, result, err) => {
+        onToolEnd: (name, _id, result, err, args) => {
           setActiveTool("");
           let displayContent = "";
           let meta = "";
@@ -380,8 +393,8 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
             displayContent = lines.slice(0, 8).join("\n");
             if (lines.length > 8) displayContent += `\n  ... ${lines.length - 8} more lines`;
           } else if (name === "Bash") {
-            const firstLine = result.split("\n")[0] || "";
-            const cmdPreview = firstLine.length > 60 ? firstLine.slice(0, 57) + "..." : firstLine;
+            const cmd = (args?.command as string) || "";
+            const cmdPreview = cmd.length > 60 ? cmd.slice(0, 57) + "..." : cmd;
             meta = `Bash(${cmdPreview})`;
             const lines = result.split("\n");
             displayContent = lines.slice(0, 12).join("\n");
@@ -469,7 +482,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
         return prev;
       });
     },
-    [settings, sessionId, exit, thinking, tokenUsage]
+    [settings, sessionId, exit, thinking, tokenUsage, terminalMode]
   );
 
   const renderMessage = (msg: MessageDisplay, idx: number) => {
@@ -703,7 +716,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
       )}
 
       {!permissionPrompt && (
-        <Box borderStyle="single" borderColor={terminalMode ? "magenta" : "gray"} paddingLeft={1} width={termSize.columns}>
+        <Box borderStyle="single" borderColor={terminalMode ? "magenta" : permMode.mode === "unrestricted" ? "red" : "gray"} paddingLeft={1} width={termSize.columns}>
           <Box flexGrow={1}>
             {isProcessing ? (
               <Text color="cyan">
@@ -728,6 +741,10 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
         <Box>
           {terminalMode ? (
             <Text color="magenta" bold>Terminal Mode</Text>
+          ) : permMode.mode === "unrestricted" ? (
+            <Text color="red" bold>⚠ Unrestricted [{permMode.symbol}]</Text>
+          ) : permMode.mode === "cautious" ? (
+            <Text color="yellow">{permMode.label} <Text dimColor>[{permMode.symbol}]</Text></Text>
           ) : (
             <Text color="cyan">{permMode.label} <Text dimColor>[{permMode.symbol}]</Text></Text>
           )}

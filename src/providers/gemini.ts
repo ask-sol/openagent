@@ -13,6 +13,7 @@ const config: ProviderConfig = {
   id: "gemini",
   name: "Google Gemini",
   description: "Gemini 2.5 Pro, Flash, and more",
+  category: "cloud",
   apiKeyEnvVar: "GEMINI_API_KEY",
   apiKeyUrl: "https://aistudio.google.com/apikey",
   models: [

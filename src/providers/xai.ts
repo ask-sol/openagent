@@ -13,6 +13,7 @@ const config: ProviderConfig = {
   id: "xai",
   name: "xAI",
   description: "Grok-3, Grok-3 Mini",
+  category: "cloud",
   apiKeyEnvVar: "XAI_API_KEY",
   apiKeyUrl: "https://console.x.ai",
   models: [

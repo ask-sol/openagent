@@ -13,6 +13,7 @@ const config: ProviderConfig = {
   id: "groq",
   name: "Groq",
   description: "Ultra-fast inference — Llama, Mixtral, Gemma",
+  category: "cloud",
   apiKeyEnvVar: "GROQ_API_KEY",
   apiKeyUrl: "https://console.groq.com/keys",
   models: [

@@ -40,11 +40,12 @@ export const fileWriteTool: Tool = {
       const existed = existsSync(filePath);
       writeFileSync(filePath, content);
 
-      const lines = content.split("\n").length;
-      const preview = content.split("\n").slice(0, 8).map((l) => `  ${l}`).join("\n");
-      const truncNote = lines > 8 ? `\n  ... ${lines - 8} more lines` : "";
+      const allLines = content.split("\n");
+      const lines = allLines.length;
+      const preview = allLines.slice(0, 12).map((l) => `+ ${l}`).join("\n");
+      const truncNote = lines > 12 ? `\n  ... +${lines - 12} more lines` : "";
       return {
-        output: `${existed ? "Overwrote" : "Created"} ${filePath} (${lines} lines)\n${preview}${truncNote}`,
+        output: `${existed ? "Overwrote" : "Created"} ${filePath} (${lines} lines, +${lines} added)\n${preview}${truncNote}`,
       };
     } catch (err: any) {
       return { output: "", error: `Failed to write file: ${err.message}` };

@@ -11,7 +11,7 @@ import { readdirSync } from "node:fs";
 export interface QueryCallbacks {
   onText: (text: string) => void;
   onToolStart: (name: string, id: string) => void;
-  onToolEnd: (name: string, id: string, result: string, error?: string) => void;
+  onToolEnd: (name: string, id: string, result: string, error?: string, args?: Record<string, unknown>) => void;
   onToolPermission: (name: string, args: Record<string, unknown>) => Promise<boolean>;
   onDone: (usage: TokenUsage) => void;
   onError: (error: string) => void;
@@ -244,7 +244,7 @@ export async function runQueryLoop(
         }
 
         const result = await tool.execute(input, toolContext);
-        callbacks.onToolEnd(tc.name, tc.id, result.output, result.error);
+        callbacks.onToolEnd(tc.name, tc.id, result.output, result.error, input);
         return { id: tc.id, ...result };
       })
     );

@@ -7,10 +7,12 @@ import { ollamaProvider } from "./ollama.js";
 import { deepseekProvider } from "./deepseek.js";
 import { xaiProvider } from "./xai.js";
 import { openrouterProvider } from "./openrouter.js";
+import { bedrockProvider } from "./bedrock.js";
 import type { Provider, ProviderConfig } from "./types.js";
 
 export const providers: Map<string, Provider> = new Map([
   ["openrouter", openrouterProvider],
+  ["bedrock", bedrockProvider],
   ["openai", openaiProvider],
   ["anthropic", anthropicProvider],
   ["gemini", geminiProvider],

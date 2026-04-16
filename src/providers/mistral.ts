@@ -13,6 +13,7 @@ const config: ProviderConfig = {
   id: "mistral",
   name: "Mistral AI",
   description: "Mistral Large, Medium, Codestral",
+  category: "cloud",
   apiKeyEnvVar: "MISTRAL_API_KEY",
   apiKeyUrl: "https://console.mistral.ai/api-keys",
   models: [
