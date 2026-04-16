@@ -15,6 +15,23 @@ function getCheckPath(): string {
   return join(getConfigDir(), CHECK_FILE);
 }
 
+function parseVersion(v: string): number[] {
+  const base = v.split("-")[0];
+  return base.split(".").map(Number);
+}
+
+function isNewer(remote: string, local: string): boolean {
+  const r = parseVersion(remote);
+  const l = parseVersion(local);
+  for (let i = 0; i < 3; i++) {
+    if ((r[i] || 0) > (l[i] || 0)) return true;
+    if ((r[i] || 0) < (l[i] || 0)) return false;
+  }
+  const rDate = remote.split("-")[1] || "0";
+  const lDate = local.split("-")[1] || "0";
+  return rDate > lDate;
+}
+
 function loadCheckData(): CheckData {
   const path = getCheckPath();
   if (!existsSync(path)) return { lastCheck: 0, latestVersion: CURRENT_VERSION };
@@ -37,7 +54,7 @@ export async function checkForUpdate(): Promise<string | null> {
   const data = loadCheckData();
 
   if (Date.now() - data.lastCheck < CHECK_INTERVAL) {
-    if (data.latestVersion !== CURRENT_VERSION) {
+    if (isNewer(data.latestVersion, CURRENT_VERSION)) {
       return data.latestVersion;
     }
     return null;
@@ -59,7 +76,7 @@ export async function checkForUpdate(): Promise<string | null> {
 
     saveCheckData({ lastCheck: Date.now(), latestVersion: latest || CURRENT_VERSION });
 
-    if (latest && latest !== CURRENT_VERSION) {
+    if (latest && isNewer(latest, CURRENT_VERSION)) {
       return latest;
     }
 
