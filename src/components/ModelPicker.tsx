@@ -49,26 +49,34 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
   }, [step]);
 
   function startPull(model: string) {
-    setPullProgress("Starting download...");
+    setPullProgress("Checking...");
     setStep("pulling");
 
     import("node:child_process").then(({ exec, spawn }) => {
-      exec("ollama list", { timeout: 5000 }, (err, stdout) => {
-        if (err) {
-          exec("ollama serve &", () => {});
-          setTimeout(() => doPull(model, spawn), 2000);
-          return;
-        }
-
-        const already = stdout.split("\n").some(l => l.toLowerCase().startsWith(model.split(":")[0]));
-        if (already) {
-          setPullProgress("Model ready.");
-          finish(model);
-          return;
-        }
-
-        doPull(model, spawn);
+      ensureOllamaServing(exec, () => {
+        exec("ollama list", { timeout: 5000 }, (err, stdout) => {
+          if (!err && stdout) {
+            const modelBase = model.split(":")[0].toLowerCase();
+            const lines = stdout.split("\n").map(l => l.toLowerCase());
+            const already = lines.some(l => l.includes(modelBase));
+            if (already) {
+              setPullProgress("Model already downloaded.");
+              finish(model);
+              return;
+            }
+          }
+          doPull(model, spawn);
+        });
       });
+    });
+  }
+
+  function ensureOllamaServing(exec: any, cb: () => void) {
+    exec("curl -s http://localhost:11434/api/tags", { timeout: 3000 }, (err: any) => {
+      if (!err) { cb(); return; }
+      setPullProgress("Starting Ollama server...");
+      exec("ollama serve &", { timeout: 3000 }, () => {});
+      setTimeout(cb, 2500);
     });
   }
 
@@ -101,12 +109,21 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
   }
 
   function finish(model: string) {
-    const updated = loadSettings();
-    updated.provider = "ollama";
-    updated.model = model;
-    updated.apiKey = "http://localhost:11434";
-    saveSettings(updated);
-    setTimeout(() => onComplete("ollama", model), 800);
+    setPullProgress("Starting model server...");
+    import("node:child_process").then(({ exec }) => {
+      exec("curl -s http://localhost:11434/api/tags", { timeout: 3000 }, (err) => {
+        if (err) {
+          exec("ollama serve &", { timeout: 3000 }, () => {});
+        }
+        const updated = loadSettings();
+        updated.provider = "ollama";
+        updated.model = model;
+        updated.apiKey = "http://localhost:11434";
+        saveSettings(updated);
+        setPullProgress("Ready.");
+        setTimeout(() => onComplete("ollama", model), 1000);
+      });
+    });
   }
 
   if (step === "type") {

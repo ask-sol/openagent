@@ -53,11 +53,17 @@ async function* streamRequest(
     body.options = { temperature: options.temperature };
   }
 
-  const response = await fetch(`${baseUrl}/api/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (fetchErr: any) {
+    yield { type: "error", error: "Cannot connect to Ollama. Run: ollama serve" };
+    return;
+  }
 
   if (!response.ok) {
     const err = await response.text();
@@ -136,11 +142,16 @@ async function completeRequest(
 
   if (tools.length > 0) body.tools = tools;
 
-  const response = await fetch(`${baseUrl}/api/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-  });
+    });
+  } catch (fetchErr: any) {
+    throw new Error("Cannot connect to Ollama. Run: ollama serve");
+  }
 
   if (!response.ok) {
     const err = await response.text();
