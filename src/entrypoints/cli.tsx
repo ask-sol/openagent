@@ -13,6 +13,7 @@ import {
   isUnrestrictedConfirmedForDir,
   confirmUnrestrictedForDir,
 } from "../config/permissions.js";
+import { checkForUpdate, runUpgrade, getCurrentVersion } from "../utils/updateCheck.js";
 
 const program = new Command();
 
@@ -28,7 +29,13 @@ program
   .option("-u, --unrestricted", "Run in unrestricted mode (no permission prompts)")
   .option("-c, --cautious", "Run in cautious mode (prompt before every tool)")
   .option("-t, --think", "Enable thinking/reasoning mode")
+  .option("--upgrade", "Upgrade OpenAgent to the latest version")
   .action(async (options) => {
+    if (options.upgrade) {
+      await runUpgrade();
+      return;
+    }
+
     if (options.sessions) {
       const sessions = listSessions(process.cwd());
       if (sessions.length === 0) {
@@ -82,6 +89,12 @@ program
       if (options.model) settings.model = options.model;
       if (options.mode) settings.responseMode = options.mode;
       saveSettings(settings);
+    }
+
+    const newVersion = await checkForUpdate().catch(() => null);
+    if (newVersion) {
+      console.log(`\n  \x1b[33m⬆ Update available: v${newVersion}\x1b[0m (current: v${getCurrentVersion()})`);
+      console.log(`  Run \x1b[36mopenagent --upgrade\x1b[0m to update\n`);
     }
 
     const forceSetup = options.setup || false;

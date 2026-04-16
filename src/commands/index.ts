@@ -802,6 +802,10 @@ cmd("keybindings", ["keys", "shortcuts"], "UI", "Show keyboard shortcuts", () =>
   };
 });
 
+cmd("upgrade", ["update"], "General", "Check for updates and upgrade OpenAgent", async () => {
+  return { output: "Run 'openagent --upgrade' from your terminal to update.", action: "exit" };
+});
+
 cmd("changelog", ["release-notes", "whats-new"], "Info", "Show recent changes", () => {
   return { output: "OpenAgent v0.1.0 — Initial release\n  Multi-provider support (8 providers)\n  Agentic coding tools\n  Web search & fetch\n  Reddit & X posting\n  Local session resume\n  CONTEXT.session persistence\n  Permission modes\n  50+ slash commands" };
 });
