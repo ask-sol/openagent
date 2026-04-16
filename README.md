@@ -45,6 +45,12 @@ OpenAgent is a terminal-based AI coding assistant — like Claude Code, but prov
 brew install ask-sol/openagent/openagent
 ```
 
+### Update
+
+```bash
+brew upgrade openagent
+```
+
 ### Manual
 
 ```bash
