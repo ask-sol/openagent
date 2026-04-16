@@ -824,6 +824,168 @@ cmd("feedback", ["report", "bug"], "Info", "Submit feedback or report a bug", ()
   return { output: "Report issues at: https://github.com/openagent-cli/openagent/issues\nOr describe the issue to the AI and ask it to help troubleshoot." };
 });
 
+cmd("whatsapp", ["wa", "setup-whatsapp"], "Bridges", "Connect WhatsApp to OpenAgent", () => {
+  return { output: "", action: "setup-whatsapp" as any };
+});
+
+cmd("discord", ["setup-discord"], "Bridges", "Connect Discord bot to OpenAgent", () => {
+  return { output: "", action: "setup-discord" as any };
+});
+
+cmd("autofix", ["fix-loop"], "Dev", "Run a command, read errors, fix them, repeat", (args, ctx) => {
+  if (!args) {
+    return { output: "Usage: /autofix <test-command>\nExample: /autofix npm test\n\nRuns the command, sends errors to the AI, applies fixes, repeats until passing." };
+  }
+  return { output: `Ask the AI: "Run '${args}', read the errors, fix them, and repeat until it passes."` };
+});
+
+cmd("smartcommit", ["sc", "ai-commit"], "Git", "Generate a commit message from the current diff", (_args, ctx) => {
+  return new Promise((res) => {
+    exec("git diff --cached --stat", { cwd: ctx.cwd }, (err, stdout) => {
+      if (err || !stdout.trim()) {
+        exec("git diff --stat", { cwd: ctx.cwd }, (err2, stdout2) => {
+          if (!stdout2?.trim()) return res({ output: "No changes to commit." });
+          res({ output: `Ask the AI: "Look at the git diff and generate a commit message, then commit it."` });
+        });
+      } else {
+        res({ output: `Staged changes:\n${stdout.trim()}\n\nAsk the AI: "Generate a commit message for these staged changes and commit."` });
+      }
+    });
+  });
+});
+
+cmd("project", ["detect", "info"], "Dev", "Detect project type and show info", async (_args, ctx) => {
+  const { detectProject, formatProjectInfo } = await import("../utils/projectDetect.js");
+  const info = detectProject(ctx.cwd);
+  if (!info) return { output: "Could not detect project type in this directory." };
+
+  let output = `Project: ${formatProjectInfo(info)}\n`;
+  if (info.testCommand) output += `  Test:  ${info.testCommand}\n`;
+  if (info.buildCommand) output += `  Build: ${info.buildCommand}\n`;
+  if (info.lintCommand) output += `  Lint:  ${info.lintCommand}\n`;
+  if (info.devCommand) output += `  Dev:   ${info.devCommand}\n`;
+  return { output };
+});
+
+cmd("cost", ["price", "spending"], "Session", "Show estimated cost for this session", async (_args, ctx) => {
+  const { estimateCost } = await import("../utils/costTracker.js");
+  const settings = loadSettings();
+  const { formatted } = estimateCost(settings.model, ctx.tokenUsage);
+  const total = ctx.tokenUsage.inputTokens + ctx.tokenUsage.outputTokens;
+  return {
+    output: `Cost Estimate\n  Model:  ${settings.model}\n  Input:  ${formatTokens(ctx.tokenUsage.inputTokens)}\n  Output: ${formatTokens(ctx.tokenUsage.outputTokens)}\n  Total:  ${formatTokens(total)} tokens\n  Cost:   ~${formatted}`,
+  };
+});
+
+cmd("export", ["save-chat"], "Session", "Export conversation to markdown file", (args, ctx) => {
+  const filename = args || `openagent-${new Date().toISOString().slice(0, 10)}.md`;
+  const { loadSession } = require("../session/history.js");
+  const session = loadSession(ctx.sessionId);
+  if (!session || session.messages.length === 0) {
+    return { output: "No messages to export." };
+  }
+
+  let md = `# OpenAgent Session\n\nDate: ${new Date().toISOString()}\n\n---\n\n`;
+  for (const msg of session.messages) {
+    const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+    if (msg.role === "user") md += `## You\n\n${content}\n\n`;
+    else if (msg.role === "assistant") md += `## OpenAgent\n\n${content}\n\n`;
+    else if (msg.role === "tool") md += `> Tool: ${content.slice(0, 200)}\n\n`;
+  }
+
+  try {
+    const { writeFileSync } = require("node:fs");
+    const { resolve } = require("node:path");
+    const path = resolve(ctx.cwd, filename);
+    writeFileSync(path, md);
+    return { output: `Exported to ${path}` };
+  } catch (err: any) {
+    return { output: `Export failed: ${err.message}` };
+  }
+});
+
+cmd("clipboard", ["paste", "cb"], "Utility", "Paste clipboard contents as context", async () => {
+  try {
+    const { execSync } = await import("node:child_process");
+    const content = execSync("pbpaste", { encoding: "utf-8", timeout: 5000 });
+    if (!content.trim()) return { output: "Clipboard is empty." };
+    return { output: `Clipboard (${content.length} chars):\n${content.slice(0, 2000)}${content.length > 2000 ? "\n... truncated" : ""}` };
+  } catch {
+    return { output: "Could not read clipboard." };
+  }
+});
+
+cmd("image", ["screenshot", "img"], "Utility", "Read an image file (for vision-capable models)", (args) => {
+  if (!args) return { output: "Usage: /image <path>\nSends the image to the AI for analysis (requires a vision-capable model like GPT-4o, Gemini, Claude)." };
+  return { output: `Ask the AI: "Look at the image at ${args} and describe what you see."` };
+});
+
+cmd("watch", [], "Dev", "Watch a file or directory for changes", (args) => {
+  if (!args) return { output: "Usage: /watch <path>\nWatches for file changes and notifies the AI." };
+  return { output: `Ask the AI: "Watch ${args} for changes and react to them."` };
+});
+
+cmd("scaffold", ["new", "create"], "Dev", "Scaffold a new project", (args) => {
+  if (!args) return { output: "Usage: /scaffold <type>\nTypes: react, next, express, fastapi, rust, go\nOr ask the AI: 'Create a new Next.js project'" };
+  return { output: `Ask the AI: "Scaffold a new ${args} project in this directory."` };
+});
+
+cmd("review", ["code-review", "cr"], "Git", "Review current changes or a PR", (args, ctx) => {
+  if (args) {
+    return { output: `Ask the AI: "Review pull request ${args} and give feedback."` };
+  }
+  return new Promise((res) => {
+    exec("git diff --stat", { cwd: ctx.cwd }, (err, stdout) => {
+      if (!stdout?.trim()) return res({ output: "No changes to review." });
+      res({ output: `Changes to review:\n${stdout.trim()}\n\nAsk the AI: "Review my uncommitted changes and give feedback."` });
+    });
+  });
+});
+
+cmd("refactor", [], "Dev", "Ask the AI to refactor code", (args) => {
+  if (!args) return { output: "Usage: /refactor <file-or-description>\nExample: /refactor src/utils/helpers.ts" };
+  return { output: `Ask the AI: "Refactor ${args} — improve readability, performance, and code quality."` };
+});
+
+cmd("explain", [], "Dev", "Ask the AI to explain code", (args) => {
+  if (!args) return { output: "Usage: /explain <file-or-code>\nExample: /explain src/query.ts" };
+  return { output: `Ask the AI: "Explain ${args} — what it does, how it works, and why."` };
+});
+
+cmd("security", ["audit-security"], "Dev", "Security audit of current changes", (_args, ctx) => {
+  return new Promise((res) => {
+    exec("git diff", { cwd: ctx.cwd, maxBuffer: 1024 * 1024 }, (err, stdout) => {
+      if (!stdout?.trim()) return res({ output: "No changes to audit." });
+      res({ output: `Ask the AI: "Security review my uncommitted changes — look for vulnerabilities, injection risks, exposed secrets, and OWASP top 10 issues."` });
+    });
+  });
+});
+
+cmd("perf", ["performance"], "Dev", "Performance analysis of a file or function", (args) => {
+  if (!args) return { output: "Usage: /perf <file>\nExample: /perf src/query.ts" };
+  return { output: `Ask the AI: "Analyze ${args} for performance issues — look for N+1 queries, unnecessary allocations, blocking operations, and optimization opportunities."` };
+});
+
+cmd("translate", [], "Utility", "Translate code between languages", (args) => {
+  if (!args) return { output: "Usage: /translate <file> to <language>\nExample: /translate utils.py to typescript" };
+  return { output: `Ask the AI: "Translate ${args}."` };
+});
+
+cmd("regex", [], "Utility", "Generate or explain a regex", (args) => {
+  if (!args) return { output: "Usage: /regex <description or pattern>\nExample: /regex match email addresses" };
+  return { output: `Ask the AI: "Generate a regex for: ${args}"` };
+});
+
+cmd("sql", [], "Utility", "Generate or explain SQL", (args) => {
+  if (!args) return { output: "Usage: /sql <description>\nExample: /sql get all users who signed up last month" };
+  return { output: `Ask the AI: "Write SQL for: ${args}"` };
+});
+
+cmd("diagram", ["draw"], "Utility", "Generate a text diagram", (args) => {
+  if (!args) return { output: "Usage: /diagram <description>\nExample: /diagram architecture of a microservices app" };
+  return { output: `Ask the AI: "Create an ASCII/Mermaid diagram of: ${args}"` };
+});
+
 export function getCommand(input: string): { command: CommandDef; args: string } | null {
   if (!input.startsWith("/")) return null;
   const spaceIdx = input.indexOf(" ");

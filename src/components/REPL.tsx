@@ -27,6 +27,11 @@ import { ProviderPicker } from "./ProviderPicker.js";
 import { ModelPicker } from "./ModelPicker.js";
 import { RedditSetup } from "./RedditSetup.js";
 import { XSetup } from "./XSetup.js";
+import { WhatsAppSetup } from "./WhatsAppSetup.js";
+import { DiscordSetup } from "./DiscordSetup.js";
+import { detectProject, formatProjectInfo } from "../utils/projectDetect.js";
+import { estimateCost } from "../utils/costTracker.js";
+import { renderMarkdown } from "../utils/renderMarkdown.js";
 
 interface MessageDisplay {
   role: "user" | "assistant" | "tool" | "system";
@@ -53,7 +58,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
   const [error, setError] = useState("");
   const [thinking, setThinking] = useState(initialThinking);
   const [settings, setSettings] = useState(initialSettings);
-  const [pickerView, setPickerView] = useState<"none" | "provider" | "model" | "reddit" | "x">("none");
+  const [pickerView, setPickerView] = useState<"none" | "provider" | "model" | "reddit" | "x" | "whatsapp" | "discord">("none");
   const [permissionPrompt, setPermissionPrompt] = useState<{ name: string; desc: string } | null>(null);
   const permissionResolveRef = useRef<((allowed: boolean) => void) | null>(null);
 
@@ -228,6 +233,16 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
 
         if (result.action === "setup-x") {
           setPickerView("x");
+          return;
+        }
+
+        if ((result.action as string) === "setup-whatsapp") {
+          setPickerView("whatsapp");
+          return;
+        }
+
+        if ((result.action as string) === "setup-discord") {
+          setPickerView("discord");
           return;
         }
 
@@ -410,7 +425,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
           <Box key={idx} flexDirection="column" marginBottom={1}>
             <Text color="green" bold>{"⏺"} OpenAgent — <Text color="gray">{modelDisplay}</Text></Text>
             <Box marginLeft={2}>
-              <Text>{wrapText(msg.content, width - 2)}</Text>
+              <Text>{renderMarkdown(wrapText(msg.content, width - 2))}</Text>
             </Box>
           </Box>
         );
@@ -506,19 +521,55 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
     );
   }
 
+  if (pickerView === "whatsapp") {
+    return (
+      <Box flexDirection="column" width={termSize.columns}>
+        <WhatsAppSetup
+          onComplete={(msg) => {
+            setPickerView("none");
+            setDisplayMessages((prev) => [...prev, { role: "system", content: msg }]);
+          }}
+          onCancel={handlePickerCancel}
+        />
+      </Box>
+    );
+  }
+
+  if (pickerView === "discord") {
+    return (
+      <Box flexDirection="column" width={termSize.columns}>
+        <DiscordSetup
+          onComplete={(msg) => {
+            setPickerView("none");
+            setDisplayMessages((prev) => [...prev, { role: "system", content: msg }]);
+          }}
+          onCancel={handlePickerCancel}
+        />
+      </Box>
+    );
+  }
+
   return (
     <Box flexDirection="column" width={termSize.columns}>
-      {displayMessages.length === 0 && (
-        <Box flexDirection="column" marginBottom={1}>
-          <Text>{getBanner(termSize.columns)}</Text>
-          <Text color="gray">
-            {modelDisplay} • {settings.responseMode} mode • {permMode.label} [{permMode.symbol}]
-            {thinking ? " • thinking" : ""}
-          </Text>
-          <Text color="gray" dimColor>Type /help for commands, or start typing to chat</Text>
-          <Text> </Text>
-        </Box>
-      )}
+      {displayMessages.length === 0 && (() => {
+        const project = detectProject(process.cwd());
+        return (
+          <Box flexDirection="column" marginBottom={1}>
+            <Text>{getBanner(termSize.columns)}</Text>
+            <Text color="gray">
+              {modelDisplay} • {settings.responseMode} mode • {permMode.label} [{permMode.symbol}]
+              {thinking ? " • thinking" : ""}
+            </Text>
+            {project && (
+              <Text color="gray" dimColor>
+                {formatProjectInfo(project)}
+              </Text>
+            )}
+            <Text color="gray" dimColor>Type /help for commands, or start typing to chat</Text>
+            <Text> </Text>
+          </Box>
+        );
+      })()}
 
       <Box flexDirection="column" flexGrow={1}>
         {displayMessages.map(renderMessage)}
@@ -528,7 +579,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
         <Box flexDirection="column" marginBottom={1}>
           <Text color="green" bold>{"⏺"} OpenAgent — <Text color="gray">{modelDisplay}</Text></Text>
           <Box marginLeft={2}>
-            <Text>{wrapText(streamingText, Math.max(termSize.columns - 6, 40))}</Text>
+            <Text>{renderMarkdown(wrapText(streamingText, Math.max(termSize.columns - 6, 40)))}</Text>
           </Box>
         </Box>
       )}
@@ -597,8 +648,8 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
           {thinking ? " • think" : ""}
           {queuedMessages.length > 0 ? ` • ${queuedMessages.length} queued` : ""}
           {" • "}{formatTokens(tokenUsage.inputTokens + tokenUsage.outputTokens)} tokens
+          {" • ~"}{estimateCost(settings.model, tokenUsage).formatted}
           {" • "}{modelDisplay}
-          {" • esc=stop shift+esc=queue"}
         </Text>
       </Box>
     </Box>
