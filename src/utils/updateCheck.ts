@@ -76,6 +76,12 @@ export async function runUpgrade(): Promise<void> {
   console.log("Upgrading OpenAgent...\n");
 
   try {
+    console.log("Refreshing tap...");
+    execSync("cd $(brew --repository)/Library/Taps/ask-sol/homebrew-openagent && git pull 2>&1", {
+      stdio: "inherit",
+      timeout: 30000,
+    });
+    console.log("Installing latest...\n");
     execSync("brew reinstall openagent 2>&1", {
       stdio: "inherit",
       timeout: 120000,
