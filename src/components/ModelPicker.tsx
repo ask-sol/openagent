@@ -1,8 +1,11 @@
 import React, { useState } from "react";
 import { Box, Text } from "ink";
+import TextInput from "ink-text-input";
 import SelectInput from "ink-select-input";
 import { getAllProviders, getProvider } from "../providers/index.js";
 import { loadSettings, saveSettings } from "../config/settings.js";
+
+type Step = "pick" | "key";
 
 interface ModelPickerProps {
   onComplete: (provider: string, model: string) => void;
@@ -10,6 +13,12 @@ interface ModelPickerProps {
 }
 
 export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
+  const [step, setStep] = useState<Step>("pick");
+  const [pendingProvider, setPendingProvider] = useState("");
+  const [pendingModel, setPendingModel] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [error, setError] = useState("");
+
   const settings = loadSettings();
 
   const allModels: Array<{ label: string; value: string; providerId: string }> = [];
@@ -29,23 +38,60 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
     const provider = getProvider(providerId);
     if (!provider) return;
 
-    if (providerId !== settings.provider) {
-      if (providerId !== "ollama" && !settings.apiKey) {
-        const updated = loadSettings();
-        updated.provider = providerId;
-        updated.model = modelId;
-        saveSettings(updated);
-        onComplete(providerId, modelId);
-        return;
-      }
+    const sameProvider = providerId === settings.provider;
+
+    if (sameProvider) {
+      const updated = loadSettings();
+      updated.model = modelId;
+      saveSettings(updated);
+      onComplete(providerId, modelId);
+      return;
+    }
+
+    if (providerId === "ollama") {
+      const updated = loadSettings();
+      updated.provider = providerId;
+      updated.model = modelId;
+      updated.apiKey = "http://localhost:11434";
+      saveSettings(updated);
+      onComplete(providerId, modelId);
+      return;
+    }
+
+    setPendingProvider(providerId);
+    setPendingModel(modelId);
+    setStep("key");
+  };
+
+  const handleKeySubmit = () => {
+    if (!apiKey.trim()) {
+      setError("API key required");
+      return;
     }
 
     const updated = loadSettings();
-    updated.provider = providerId;
-    updated.model = modelId;
+    updated.provider = pendingProvider;
+    updated.model = pendingModel;
+    updated.apiKey = apiKey.trim();
     saveSettings(updated);
-    onComplete(providerId, modelId);
+    onComplete(pendingProvider, pendingModel);
   };
+
+  if (step === "key") {
+    const provider = getProvider(pendingProvider);
+    return (
+      <Box flexDirection="column" paddingLeft={2}>
+        <Text bold color="cyan">{provider?.config.name || pendingProvider} API key:</Text>
+        <Text dimColor>Get one at: {provider?.config.apiKeyUrl || "the provider's website"}</Text>
+        <Text> </Text>
+        {error && <Text color="red">{error}</Text>}
+        <Box>
+          <Text color="cyan">{"❯ "}</Text>
+          <TextInput value={apiKey} onChange={setApiKey} onSubmit={handleKeySubmit} mask="*" />
+        </Box>
+      </Box>
+    );
+  }
 
   const currentIdx = allModels.findIndex(
     (m) => m.value === `${settings.provider}::${settings.model}`
