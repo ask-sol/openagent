@@ -102,7 +102,7 @@ export async function connectAllMcpServers(): Promise<McpConnection[]> {
 export async function disconnectAllMcpServers(): Promise<void> {
   for (const [name, conn] of connections) {
     try {
-      await conn.client.close();
+      await conn.transport.close();
     } catch {}
     connections.delete(name);
   }
@@ -131,9 +131,13 @@ export async function callMcpTool(
   fullName: string,
   args: Record<string, unknown>
 ): Promise<ToolResult> {
-  const parts = fullName.replace("mcp_", "").split("_");
-  const serverName = parts[0];
-  const toolName = parts.slice(1).join("_");
+  const withoutPrefix = fullName.replace(/^mcp_/, "");
+  const firstUnderscore = withoutPrefix.indexOf("_");
+  if (firstUnderscore === -1) {
+    return { output: "", error: `Invalid MCP tool name: ${fullName}` };
+  }
+  const serverName = withoutPrefix.slice(0, firstUnderscore);
+  const toolName = withoutPrefix.slice(firstUnderscore + 1);
 
   const conn = connections.get(serverName);
   if (!conn) {

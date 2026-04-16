@@ -32,31 +32,13 @@ export const globTool: Tool = {
         : resolve(context.cwd, input.path as string)
       : context.cwd;
 
+    const safePattern = pattern.replace(/'/g, "'\\''");
+
     return new Promise((resolve_) => {
-      const cmd = `find ${searchPath} -path '*/node_modules' -prune -o -path '*/.git' -prune -o -name '${pattern.replace(/\*\*\//g, "")}' -print 2>/dev/null | head -200`;
+      const cmd = `find ${searchPath} -path '*/node_modules' -prune -o -path '*/.git' -prune -o -path '*/dist' -prune -o -name '${safePattern.replace(/\*\*\//g, "")}' -print 2>/dev/null | head -200`;
 
       exec(cmd, { cwd: searchPath, timeout: 30000 }, (err, stdout) => {
-        if (err && !stdout) {
-          try {
-            const fg = require("fast-glob");
-            fg.sync(pattern, {
-              cwd: searchPath,
-              ignore: ["node_modules/**", ".git/**"],
-              absolute: true,
-            }).then((files: string[]) => {
-              resolve_({
-                output: files.length > 0
-                  ? `Found ${files.length} files:\n${files.join("\n")}`
-                  : "No files matched the pattern.",
-              });
-            });
-          } catch {
-            resolve_({ output: "", error: `Glob failed: ${err?.message}` });
-          }
-          return;
-        }
-
-        const files = stdout
+        const files = (stdout || "")
           .trim()
           .split("\n")
           .filter((f) => f.length > 0);

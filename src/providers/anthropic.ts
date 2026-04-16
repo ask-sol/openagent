@@ -182,21 +182,9 @@ async function* streamRequest(
               yield {
                 type: "done",
                 usage: {
-                  inputTokens: 0,
+                  inputTokens: data.message?.usage?.input_tokens || 0,
                   outputTokens: data.usage.output_tokens || 0,
-                },
-              };
-            }
-            break;
-
-          case "message_start":
-            if (data.message?.usage) {
-              yield {
-                type: "done",
-                usage: {
-                  inputTokens: data.message.usage.input_tokens || 0,
-                  outputTokens: 0,
-                  cacheReadTokens: data.message.usage.cache_read_input_tokens || 0,
+                  cacheReadTokens: data.message?.usage?.cache_read_input_tokens || 0,
                   cacheWriteTokens: data.message.usage.cache_creation_input_tokens || 0,
                 },
               };

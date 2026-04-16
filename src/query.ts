@@ -78,7 +78,7 @@ export async function runQueryLoop(
 ): Promise<{ messages: ProviderMessage[]; totalUsage: TokenUsage }> {
   const settings = loadSettings();
   const cwd = process.cwd();
-  const toolContext: ToolContext = { cwd };
+  const toolContext: ToolContext = { cwd, abortSignal };
 
   const gitBranch = await getGitBranch(cwd);
   const projectFiles = getTopLevelFiles(cwd);

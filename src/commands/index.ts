@@ -1,7 +1,8 @@
 import { exec } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, unlinkSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
-import { homedir } from "node:os";
+import { homedir, networkInterfaces } from "node:os";
+import { randomUUID, createHash } from "node:crypto";
 import { loadSettings, saveSettings, getConfigDir } from "../config/settings.js";
 import {
   loadPermissions,
@@ -661,17 +662,15 @@ cmd("decode", [], "Utility", "Base64 decode a string", (args) => {
 });
 
 cmd("uuid", [], "Utility", "Generate a UUID", () => {
-  return { output: crypto.randomUUID() };
+  return { output: randomUUID() };
 });
 
 cmd("hash", [], "Utility", "Hash a string (SHA-256)", (args) => {
   if (!args) return { output: "Usage: /hash <text>" };
-  const { createHash } = require("node:crypto");
   return { output: createHash("sha256").update(args).digest("hex") };
 });
 
 cmd("ip", [], "Utility", "Show local IP address", () => {
-  const { networkInterfaces } = require("node:os");
   const nets = networkInterfaces();
   const results: string[] = [];
   for (const [name, addrs] of Object.entries(nets)) {

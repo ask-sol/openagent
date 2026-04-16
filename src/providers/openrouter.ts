@@ -198,7 +198,10 @@ async function completeRequest(
   }
 
   const data = await response.json() as Record<string, any>;
-  const choice = data.choices[0];
+  const choice = data.choices?.[0];
+  if (!choice) {
+    throw new Error("No response from API");
+  }
   const toolCalls: ProviderToolCall[] = (choice.message.tool_calls || []).map(
     (tc: any) => ({
       id: tc.id,
