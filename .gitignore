@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.*
+*.log
+.DS_Store
+bun.lock
+package-lock.json
+config.json
+funmode/
+*.session
+.openagent/

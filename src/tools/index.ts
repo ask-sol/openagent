@@ -1,0 +1,41 @@
+import { bashTool } from "./BashTool/index.js";
+import { fileReadTool } from "./FileReadTool/index.js";
+import { fileEditTool } from "./FileEditTool/index.js";
+import { fileWriteTool } from "./FileWriteTool/index.js";
+import { globTool } from "./GlobTool/index.js";
+import { grepTool } from "./GrepTool/index.js";
+import { webSearchTool } from "./WebSearchTool/index.js";
+import { webFetchTool } from "./WebFetchTool/index.js";
+import { redditPostTool } from "./RedditTool/index.js";
+import { xPostTool } from "./XTool/index.js";
+import type { Tool } from "./types.js";
+import { toolToProviderFormat } from "./types.js";
+import type { ProviderTool } from "../providers/types.js";
+
+export const allTools: Tool[] = [
+  bashTool,
+  fileReadTool,
+  fileEditTool,
+  fileWriteTool,
+  globTool,
+  grepTool,
+  webSearchTool,
+  webFetchTool,
+  redditPostTool,
+  xPostTool,
+];
+
+const toolMap = new Map<string, Tool>();
+for (const tool of allTools) {
+  toolMap.set(tool.name, tool);
+}
+
+export function getTool(name: string): Tool | undefined {
+  return toolMap.get(name);
+}
+
+export function getToolsForProvider(): ProviderTool[] {
+  return allTools.map(toolToProviderFormat);
+}
+
+export type { Tool, ToolResult, ToolContext } from "./types.js";
