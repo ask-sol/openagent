@@ -1,8 +1,4 @@
 <p align="center">
-  <img src="assets/banner.png" alt="OpenAgent" width="700" />
-</p>
-
-<p align="center">
   <strong>Open-source agentic coding CLI for your terminal.</strong><br>
   Multi-provider. Token-efficient. Extensible.
 </p>
