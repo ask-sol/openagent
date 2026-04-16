@@ -50,7 +50,7 @@ async function* streamRequest(
   if (options.temperature !== undefined) body.temperature = options.temperature;
   if (options.maxTokens) body.max_tokens = options.maxTokens;
 
-  const baseUrl = options.baseUrl || "https://dashscope.aliyuncs.com/compatible-mode/v1";
+  const baseUrl = options.baseUrl || "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
@@ -157,7 +157,7 @@ async function completeRequest(
   if (tools.length > 0) body.tools = tools;
   if (options.maxTokens) body.max_tokens = options.maxTokens;
 
-  const baseUrl = options.baseUrl || "https://dashscope.aliyuncs.com/compatible-mode/v1";
+  const baseUrl = options.baseUrl || "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
@@ -197,7 +197,7 @@ async function completeRequest(
 
 async function validateApiKey(apiKey: string): Promise<boolean> {
   try {
-    const res = await fetch("https://dashscope.aliyuncs.com/compatible-mode/v1/models", {
+    const res = await fetch("https://dashscope-intl.aliyuncs.com/compatible-mode/v1/models", {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
     return res.ok;
