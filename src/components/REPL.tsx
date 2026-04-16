@@ -5,7 +5,7 @@ import Spinner from "ink-spinner";
 import { useStatusWord } from "../utils/statusWords.js";
 import { getProvider } from "../providers/index.js";
 import { loadSettings, saveSettings, type OpenAgentSettings } from "../config/settings.js";
-import { getEffectiveMode, getModeMeta } from "../config/permissions.js";
+import { getEffectiveMode, getModeMeta, addRule } from "../config/permissions.js";
 import { runQueryLoop, describeToolCall, type QueryCallbacks } from "../query.js";
 import {
   createSession,
@@ -96,7 +96,6 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
         setPermissionPrompt(null);
         resolve(false);
       } else if (c === "a") {
-        const { addRule } = require("../config/permissions.js");
         addRule({ tool: permissionPrompt.name, behavior: "allow" }, "global");
         const resolve = permissionResolveRef.current;
         permissionResolveRef.current = null;
