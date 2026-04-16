@@ -7,7 +7,7 @@ import { totalmem } from "node:os";
 import { getAllProviders, getProvider } from "../providers/index.js";
 import { loadSettings, saveSettings } from "../config/settings.js";
 
-type Step = "type" | "cloud-provider" | "cloud-model" | "cloud-key" | "local-model" | "local-confirm" | "local-custom" | "pulling";
+type Step = "type" | "cloud-provider" | "cloud-model" | "cloud-key" | "local-check" | "local-model" | "local-confirm" | "local-custom" | "pulling" | "installing-ollama";
 
 interface ModelPickerProps {
   onComplete: (provider: string, model: string) => void;
@@ -119,7 +119,7 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
             { label: "Cloud   Use an API key (OpenRouter, OpenAI, Anthropic, Gemini, etc.)", value: "cloud" },
             { label: "Local   Run a model on this machine with Ollama", value: "local" },
           ]}
-          onSelect={(item) => setStep(item.value === "cloud" ? "cloud-provider" : "local-model")}
+          onSelect={(item) => setStep(item.value === "cloud" ? "cloud-provider" : "local-check")}
         />
       </Box>
     );
@@ -195,6 +195,76 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
           saveSettings(updated);
           onComplete(selectedProvider, selectedModel);
         }} mask="*" /></Box>
+      </Box>
+    );
+  }
+
+  if (step === "local-check") {
+    return (
+      <Box flexDirection="column" paddingLeft={2}>
+        <Text color="cyan"><Spinner type="dots" /> Checking for Ollama...</Text>
+        {(() => {
+          import("node:child_process").then(({ exec }) => {
+            exec("ollama --version", { timeout: 3000 }, (err) => {
+              if (err) {
+                setStep("installing-ollama");
+              } else {
+                setOllamaInstalled(true);
+                setStep("local-model");
+              }
+            });
+          });
+          return null;
+        })()}
+      </Box>
+    );
+  }
+
+  if (step === "installing-ollama") {
+    return (
+      <Box flexDirection="column" paddingLeft={2}>
+        <Text bold color="cyan">Ollama not found</Text>
+        <Text> </Text>
+        <Text>Ollama is needed to run local models.</Text>
+        <Text> </Text>
+        <SelectInput
+          items={[
+            { label: "Install Ollama automatically", value: "install" },
+            { label: "I'll install it myself (ollama.com/download)", value: "skip" },
+            { label: "Go back", value: "back" },
+          ]}
+          onSelect={(item) => {
+            if (item.value === "back") { setStep("type"); return; }
+            if (item.value === "skip") { setStep("local-model"); return; }
+
+            setPullProgress("Installing Ollama...");
+            setStep("pulling");
+
+            import("node:child_process").then(({ exec }) => {
+              const platform = process.platform;
+              let cmd: string;
+
+              if (platform === "darwin") {
+                cmd = "brew install ollama 2>&1 && ollama serve &";
+              } else {
+                cmd = "curl -fsSL https://ollama.com/install.sh | sh 2>&1";
+              }
+
+              exec(cmd, { timeout: 120000 }, (err, stdout, stderr) => {
+                if (err) {
+                  setPullProgress(`Install failed: ${(stderr || stdout || err.message).slice(0, 200)}`);
+                  setTimeout(() => setStep("local-model"), 4000);
+                } else {
+                  setPullProgress("Ollama installed. Starting...");
+                  exec("ollama serve &", { timeout: 5000 }, () => {
+                    setOllamaInstalled(true);
+                    setTimeout(() => setStep("local-model"), 1500);
+                  });
+                }
+              });
+            });
+          }}
+        />
       </Box>
     );
   }
