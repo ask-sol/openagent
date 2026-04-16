@@ -14,25 +14,45 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get version from package.json
-        id: version
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-      - name: Check if tag exists
-        id: check
+      - name: Bump version
+        id: bump
         run: |
-          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
+          CURRENT=$(node -p "require('./package.json').version")
+          BASE=$(echo "$CURRENT" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')
+          MAJOR=$(echo "$BASE" | cut -d. -f1)
+          MINOR=$(echo "$BASE" | cut -d. -f2)
+          PATCH=$(echo "$BASE" | cut -d. -f3)
+          NEXT_PATCH=$((PATCH + 1))
+          DATE=$(date +%Y%m%d)
+          NEW_VERSION="${MAJOR}.${MINOR}.${NEXT_PATCH}-${DATE}"
+
+          node -e "
+            const pkg = require('./package.json');
+            pkg.version = '${NEW_VERSION}';
+            require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+          sed -i "s/const CURRENT_VERSION = \".*\"/const CURRENT_VERSION = \"${NEW_VERSION}\"/" src/utils/updateCheck.ts
+          sed -i "s/.version(\".*\")/.version(\"${NEW_VERSION}\")/" src/entrypoints/cli.tsx
+
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --staged --quiet || git commit -m "v${{ steps.bump.outputs.version }}"
+          git push
 
       - name: Create release
-        if: steps.check.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: OpenAgent v${{ steps.version.outputs.version }}
+          tag_name: v${{ steps.bump.outputs.version }}
+          name: OpenAgent v${{ steps.bump.outputs.version }}
           generate_release_notes: true
