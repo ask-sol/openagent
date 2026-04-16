@@ -1,0 +1,17 @@
+name: Update Homebrew Formula
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  update-tap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger tap update
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.TAP_TOKEN }}
+          repository: ask-sol/homebrew-openagent
+          event-type: update-formula
+          client-payload: '{"sha": "${{ github.sha }}"}'
