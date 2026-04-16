@@ -17,8 +17,8 @@ const config: ProviderConfig = {
   apiKeyEnvVar: "DEEPSEEK_API_KEY",
   apiKeyUrl: "https://platform.deepseek.com/api_keys",
   models: [
-    { id: "deepseek-chat", name: "DeepSeek V3", contextWindow: 65536, maxOutput: 8192 },
-    { id: "deepseek-reasoner", name: "DeepSeek R1", contextWindow: 65536, maxOutput: 8192 },
+    { id: "deepseek-chat", name: "DeepSeek V3.2", contextWindow: 128000, maxOutput: 8192 },
+    { id: "deepseek-reasoner", name: "DeepSeek R1", contextWindow: 128000, maxOutput: 8192 },
   ],
   defaultModel: "deepseek-chat",
   supportsStreaming: true,
