@@ -72,7 +72,8 @@ export async function runQueryLoop(
   provider: Provider,
   messages: ProviderMessage[],
   sessionId: string,
-  callbacks: QueryCallbacks
+  callbacks: QueryCallbacks,
+  thinking = false
 ): Promise<{ messages: ProviderMessage[]; totalUsage: TokenUsage }> {
   const settings = loadSettings();
   const cwd = process.cwd();
@@ -85,6 +86,7 @@ export async function runQueryLoop(
   const systemPrompt = buildSystemPrompt({
     mode: settings.responseMode,
     cwd,
+    thinking,
     contextSession: contextSession || undefined,
     projectFiles,
     gitBranch: gitBranch || undefined,

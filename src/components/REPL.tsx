@@ -306,15 +306,29 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
       };
 
       try {
-        const result = await runQueryLoop(provider, messagesRef.current, sessionId, callbacks);
+        const result = await runQueryLoop(provider, messagesRef.current, sessionId, callbacks, thinking);
         messagesRef.current = result.messages;
         messageCountRef.current = result.messages.length;
 
         if (streamingTextRef.current) {
-          setDisplayMessages((prev) => [
-            ...prev,
-            { role: "assistant", content: streamingTextRef.current },
-          ]);
+          let finalText = streamingTextRef.current;
+          const thinkMatch = finalText.match(/<think>([\s\S]*?)<\/think>/);
+          if (thinkMatch) {
+            const thinkContent = thinkMatch[1].trim();
+            finalText = finalText.replace(/<think>[\s\S]*?<\/think>/, "").trim();
+            if (thinkContent) {
+              setDisplayMessages((prev) => [
+                ...prev,
+                { role: "system", content: `[thinking] ${thinkContent}` },
+              ]);
+            }
+          }
+          if (finalText) {
+            setDisplayMessages((prev) => [
+              ...prev,
+              { role: "assistant", content: finalText },
+            ]);
+          }
         }
       } catch (err: any) {
         setError(err.message);

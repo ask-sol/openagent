@@ -82,6 +82,7 @@ You are in the user's terminal at their working directory. Help them build great
 export function buildSystemPrompt(options: {
   mode: ResponseMode;
   cwd: string;
+  thinking?: boolean;
   contextSession?: string;
   projectFiles?: string[];
   gitBranch?: string;
@@ -89,6 +90,21 @@ export function buildSystemPrompt(options: {
 }): string {
   const base = options.mode === "concise" ? CONCISE_PROMPT : EXPLANATIVE_PROMPT;
   const sections: string[] = [base];
+
+  if (options.thinking) {
+    sections.push(`
+THINKING MODE (enabled):
+Before responding to ANY request, think through the problem step by step inside <think>...</think> tags. This is your scratchpad — reason through the approach, consider edge cases, plan your steps, weigh tradeoffs. After thinking, give your response.
+
+Format:
+<think>
+[your reasoning here — break down the problem, consider approaches, plan steps]
+</think>
+
+[your actual response/actions here]
+
+Always think before acting. The thinking block helps you make better decisions.`);
+  }
 
   sections.push(`\nWORKING DIRECTORY: ${options.cwd}`);
 
