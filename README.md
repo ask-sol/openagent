@@ -51,6 +51,12 @@ brew install ask-sol/openagent/openagent
 brew upgrade openagent
 ```
 
+### Linux / WSL (one-liner)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ask-sol/openagent/main/scripts/install-remote.sh | bash
+```
+
 ### Manual
 
 ```bash

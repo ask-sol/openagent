@@ -69,6 +69,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
   const abortRef = useRef<AbortController | null>(null);
   const [queuedMessages, setQueuedMessages] = useState<string[]>([]);
   const [expandedView, setExpandedView] = useState(false);
+  const [terminalMode, setTerminalMode] = useState(false);
   const { exit } = useApp();
   const { stdout } = useStdout();
   const statusWord = useStatusWord(isProcessing);
@@ -85,6 +86,11 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
   useInput((ch, key) => {
     if (key.ctrl && ch === "b") {
       setExpandedView((prev) => !prev);
+      return;
+    }
+
+    if (key.ctrl && ch === "t") {
+      setTerminalMode((prev) => !prev);
       return;
     }
 
@@ -171,6 +177,24 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
       const trimmed = value.trim();
       if (!trimmed) return;
       setInput("");
+
+      if (terminalMode) {
+        setDisplayMessages((prev) => [
+          ...prev,
+          { role: "system", content: `$ ${trimmed}` },
+        ]);
+        setIsProcessing(true);
+        const { exec: execCmd } = await import("node:child_process");
+        execCmd(trimmed, { cwd: process.cwd(), maxBuffer: 1024 * 1024 * 5, timeout: 30000 }, (err, stdout, stderr) => {
+          const output = (stdout + (stderr ? stderr : "")).trim();
+          setDisplayMessages((prev) => [
+            ...prev,
+            { role: "system", content: output || (err ? `Exit code ${err.code}` : "(no output)") },
+          ]);
+          setIsProcessing(false);
+        });
+        return;
+      }
 
       if (trimmed.startsWith("/")) {
         if (trimmed === "/think" || trimmed === "/thinking") {
@@ -333,40 +357,44 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
           let meta = "";
 
           if (name === "FileEdit") {
-            try {
-              const parsed = result.match(/Edited (.+?) —/);
-              if (parsed) {
-                meta = `Update(${parsed[1].split("/").pop()})`;
-                displayContent = result;
-              }
-            } catch {}
-          } else if (name === "FileWrite") {
-            try {
-              const parsed = result.match(/(Created|Overwrote) (.+?) \((\d+) lines\)/);
-              if (parsed) {
-                meta = `${parsed[1] === "Created" ? "Create" : "Write"}(${parsed[2].split("/").pop()})`;
-                displayContent = result;
-              }
-            } catch {}
-          } else if (name === "FileRead") {
-            try {
-              const parsed = result.match(/File: (.+?) \((\d+) lines\)/);
-              if (parsed) {
-                meta = `Read(${parsed[1].split("/").pop()})`;
-                const lines = result.split("\n");
-                displayContent = lines.length > 10 ? lines.slice(0, 10).join("\n") + `\n  ... ${lines.length - 10} more lines` : result;
-              }
-            } catch {}
-          } else if (name === "Bash") {
-            meta = "Bash";
+            const parsed = result.match(/Edited (.+?) —/);
+            const fileName = parsed ? parsed[1].split("/").pop() : "";
+            meta = `Update(${fileName})`;
             const lines = result.split("\n");
-            displayContent = lines.length > 15 ? lines.slice(0, 15).join("\n") + `\n  ... ${lines.length - 15} more lines` : result;
+            displayContent = lines.map((l: string) => {
+              if (l.startsWith("+ ")) return `\x1b[32m${l}\x1b[0m`;
+              if (l.startsWith("- ")) return `\x1b[31m${l}\x1b[0m`;
+              return l;
+            }).slice(0, 20).join("\n");
+          } else if (name === "FileWrite") {
+            const parsed = result.match(/(Created|Overwrote) (.+?) \((\d+) lines\)/);
+            const fileName = parsed ? parsed[2].split("/").pop() : "";
+            meta = `${parsed?.[1] === "Created" ? "\x1b[32mCreate\x1b[0m" : "Write"}(${fileName})`;
+            const lines = result.split("\n");
+            displayContent = lines.slice(0, 12).join("\n");
+            if (lines.length > 12) displayContent += `\n  ... ${lines.length - 12} more`;
+          } else if (name === "FileRead") {
+            const parsed = result.match(/File: (.+?) \((\d+) lines\)/);
+            meta = `Read(${parsed ? parsed[1].split("/").pop() : ""})`;
+            const lines = result.split("\n");
+            displayContent = lines.slice(0, 8).join("\n");
+            if (lines.length > 8) displayContent += `\n  ... ${lines.length - 8} more lines`;
+          } else if (name === "Bash") {
+            const firstLine = result.split("\n")[0] || "";
+            const cmdPreview = firstLine.length > 60 ? firstLine.slice(0, 57) + "..." : firstLine;
+            meta = `Bash(${cmdPreview})`;
+            const lines = result.split("\n");
+            displayContent = lines.slice(0, 12).join("\n");
+            if (lines.length > 12) displayContent += `\n  ... ${lines.length - 12} more lines`;
           } else if (name === "Glob") {
             meta = "Glob";
             displayContent = result.length > 300 ? result.slice(0, 300) + "..." : result;
           } else if (name === "Grep") {
             meta = "Grep";
             displayContent = result.length > 300 ? result.slice(0, 300) + "..." : result;
+          } else if (name === "WebSearch") {
+            meta = "\x1b[36mWebSearch\x1b[0m";
+            displayContent = result.length > 400 ? result.slice(0, 400) + "..." : result;
           } else {
             meta = name;
             displayContent = result.length > 500 ? result.slice(0, 500) + "..." : result;
@@ -675,7 +703,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
       )}
 
       {!permissionPrompt && (
-        <Box borderStyle="single" borderColor="gray" paddingLeft={1} width={termSize.columns}>
+        <Box borderStyle="single" borderColor={terminalMode ? "magenta" : "gray"} paddingLeft={1} width={termSize.columns}>
           <Box flexGrow={1}>
             {isProcessing ? (
               <Text color="cyan">
@@ -683,12 +711,12 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
               </Text>
             ) : (
               <Box>
-                <Text color="cyan" bold>{"❯"} </Text>
+                <Text color={terminalMode ? "magenta" : "cyan"} bold>{terminalMode ? "$" : "❯"} </Text>
                 <TextInput
                   value={input}
                   onChange={setInput}
                   onSubmit={handleSubmit}
-                  placeholder="Message OpenAgent..."
+                  placeholder={terminalMode ? "Run a command... (Ctrl+T to switch back)" : "Message OpenAgent... (Ctrl+T for terminal)"}
                 />
               </Box>
             )}
@@ -697,15 +725,22 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
       )}
 
       <Box paddingLeft={1} justifyContent="space-between" width={termSize.columns - 2}>
-        <Text dimColor>
-          {permMode.label} [{permMode.symbol}]
-          {thinking ? " • think" : ""}
-          {queuedMessages.length > 0 ? ` • ${queuedMessages.length} queued` : ""}
-          {!expandedView && displayMessages.length > 6 ? " • Ctrl+B expand" : ""}
-          {" • "}{formatTokens(tokenUsage.inputTokens + tokenUsage.outputTokens)} tokens
-          {" • "}{estimateCost(settings.model, tokenUsage).formatted}
-          {" • "}{modelDisplay}
-        </Text>
+        <Box>
+          {terminalMode ? (
+            <Text color="magenta" bold>Terminal Mode</Text>
+          ) : (
+            <Text color="cyan">{permMode.label} <Text dimColor>[{permMode.symbol}]</Text></Text>
+          )}
+          {thinking && <Text color="yellow"> • think</Text>}
+          {queuedMessages.length > 0 && <Text color="yellow"> • {queuedMessages.length} queued</Text>}
+          {!expandedView && displayMessages.length > 6 && <Text dimColor> • Ctrl+B expand</Text>}
+          <Text dimColor> • </Text>
+          <Text color="white">{formatTokens(tokenUsage.inputTokens + tokenUsage.outputTokens)}</Text>
+          <Text dimColor> tokens • </Text>
+          <Text color="green">{estimateCost(settings.model, tokenUsage).formatted}</Text>
+          <Text dimColor> • </Text>
+          <Text color="cyan">{modelDisplay}</Text>
+        </Box>
         <Text>
           {getContextMeter(
             tokenUsage.inputTokens + tokenUsage.outputTokens,
