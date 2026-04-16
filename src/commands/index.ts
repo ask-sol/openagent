@@ -24,7 +24,7 @@ import type { TokenUsage } from "../providers/types.js";
 
 export interface CommandResult {
   output: string;
-  action?: "clear" | "exit" | "resume" | "setup" | "switch-view" | "pick-provider" | "pick-model" | "setup-reddit" | "setup-x";
+  action?: "clear" | "exit" | "resume" | "setup" | "switch-view" | "pick-provider" | "pick-model" | "setup-reddit" | "setup-x" | "compact";
   data?: any;
 }
 
@@ -87,8 +87,8 @@ cmd("clear", ["cls", "reset"], "Conversation", "Clear conversation history", () 
   return { output: "Conversation cleared.", action: "clear" };
 });
 
-cmd("compact", ["summarize"], "Conversation", "Clear history but keep a summary in context", () => {
-  return { output: "Compacted. Previous context summarized and retained." };
+cmd("compact", ["summarize"], "Conversation", "Compress conversation — keeps summary, frees tokens", () => {
+  return { output: "", action: "compact" };
 });
 
 cmd("resume", ["r", "sessions"], "Session", "Resume a previous conversation", (args, ctx) => {

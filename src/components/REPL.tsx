@@ -32,6 +32,7 @@ import { DiscordSetup } from "./DiscordSetup.js";
 import { detectProject, formatProjectInfo } from "../utils/projectDetect.js";
 import { estimateCost } from "../utils/costTracker.js";
 import { renderMarkdown } from "../utils/renderMarkdown.js";
+import { getContextMeter } from "../utils/contextMeter.js";
 
 interface MessageDisplay {
   role: "user" | "assistant" | "tool" | "system";
@@ -67,6 +68,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
   const messageCountRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
   const [queuedMessages, setQueuedMessages] = useState<string[]>([]);
+  const [expandedView, setExpandedView] = useState(false);
   const { exit } = useApp();
   const { stdout } = useStdout();
   const statusWord = useStatusWord(isProcessing);
@@ -81,6 +83,11 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
   }, []);
 
   useInput((ch, key) => {
+    if (key.ctrl && ch === "b") {
+      setExpandedView((prev) => !prev);
+      return;
+    }
+
     if (key.ctrl && ch === "c") {
       if (permissionPrompt && permissionResolveRef.current) {
         permissionResolveRef.current(false);
@@ -246,6 +253,37 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
           return;
         }
 
+        if (result.action === "compact") {
+          const msgCount = messagesRef.current.length;
+          if (msgCount < 2) {
+            setDisplayMessages((prev) => [...prev, { role: "system", content: "Nothing to compact." }]);
+            return;
+          }
+
+          const summaryParts: string[] = [];
+          for (const m of messagesRef.current) {
+            if (m.role === "user" && typeof m.content === "string") {
+              summaryParts.push(`User asked: ${m.content.slice(0, 100)}`);
+            }
+            if (m.role === "assistant" && typeof m.content === "string" && m.content.length > 0) {
+              summaryParts.push(`Agent: ${m.content.slice(0, 150)}`);
+            }
+          }
+          const summary = summaryParts.slice(-10).join("\n");
+
+          messagesRef.current = [
+            { role: "user", content: `[Compacted session summary]\n${summary}` },
+            { role: "assistant", content: "Understood. I have the context from our previous conversation. What's next?" },
+          ];
+          messageCountRef.current = 2;
+
+          setDisplayMessages([
+            { role: "system", content: `Compacted ${msgCount} messages → 2. Context preserved.` },
+          ]);
+          setTokenUsage({ inputTokens: 0, outputTokens: 0 });
+          return;
+        }
+
         if (result.output) {
           setDisplayMessages((prev) => [...prev, { role: "system", content: result.output }]);
         }
@@ -408,6 +446,22 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
 
   const renderMessage = (msg: MessageDisplay, idx: number) => {
     const width = Math.max(termSize.columns - 4, 40);
+    const totalMsgs = displayMessages.length;
+    const isOld = !expandedView && totalMsgs > 6 && idx < totalMsgs - 4;
+
+    if (isOld) {
+      if (idx === 0) {
+        const hiddenCount = totalMsgs - 4;
+        return (
+          <Box key={idx} marginBottom={1} marginLeft={2}>
+            <Text dimColor color="gray">
+              ··· {hiddenCount} earlier messages hidden — Ctrl+B to expand ···
+            </Text>
+          </Box>
+        );
+      }
+      return null;
+    }
 
     switch (msg.role) {
       case "user":
@@ -642,14 +696,24 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
         </Box>
       )}
 
-      <Box paddingLeft={1}>
+      <Box paddingLeft={1} justifyContent="space-between" width={termSize.columns - 2}>
         <Text dimColor>
           {permMode.label} [{permMode.symbol}]
           {thinking ? " • think" : ""}
           {queuedMessages.length > 0 ? ` • ${queuedMessages.length} queued` : ""}
+          {!expandedView && displayMessages.length > 6 ? " • Ctrl+B expand" : ""}
           {" • "}{formatTokens(tokenUsage.inputTokens + tokenUsage.outputTokens)} tokens
-          {" • ~"}{estimateCost(settings.model, tokenUsage).formatted}
+          {" • "}{estimateCost(settings.model, tokenUsage).formatted}
           {" • "}{modelDisplay}
+        </Text>
+        <Text>
+          {getContextMeter(
+            tokenUsage.inputTokens + tokenUsage.outputTokens,
+            (() => {
+              const p = getProvider(settings.provider);
+              return p?.config.models.find((m) => m.id === settings.model)?.contextWindow || 128000;
+            })()
+          )}
         </Text>
       </Box>
     </Box>

@@ -42,8 +42,8 @@ export function estimateCost(model: string, usage: TokenUsage): { cost: number; 
   const outputCost = (usage.outputTokens / 1_000_000) * rates.output;
   const total = inputCost + outputCost;
 
-  if (total < 0.01) {
-    return { cost: total, formatted: `$${(total * 100).toFixed(2)}c` };
+  if (total < 0.001) {
+    return { cost: total, formatted: `<$0.001` };
   }
 
   return { cost: total, formatted: `$${total.toFixed(4)}` };
