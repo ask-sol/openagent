@@ -24,7 +24,7 @@ async function getRedditAccessToken(clientId: string, clientSecret: string, refr
 export const redditPostTool: Tool = {
   name: "RedditPost",
   description:
-    "Post content to Reddit. Can create text posts or link posts to a specified subreddit. Requires Reddit OAuth to be configured in setup.",
+    "Post content to Reddit. Can create text posts or link posts to a specified subreddit. Requires Reddit API credentials (free) configured via /setup-reddit.",
   parameters: {
     type: "object",
     properties: {

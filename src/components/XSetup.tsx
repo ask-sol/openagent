@@ -49,7 +49,7 @@ export function XSetup({ onComplete, onCancel }: XSetupProps) {
     settings.x = {
       apiKey,
       apiSecret,
-      accessToken: val.trim(),
+      accessToken,
       accessSecret: val.trim(),
     };
     saveSettings(settings);

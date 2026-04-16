@@ -45,7 +45,7 @@ function generateOAuthHeader(
 export const xPostTool: Tool = {
   name: "XPost",
   description:
-    "Post a tweet to X (Twitter). Requires X API credentials to be configured in setup.",
+    "Post a tweet to X (Twitter). Requires a paid X API plan ($100/mo Basic tier) and credentials configured via /setup-x.",
   parameters: {
     type: "object",
     properties: {
