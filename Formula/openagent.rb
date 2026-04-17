@@ -3,7 +3,7 @@ class Openagent < Formula
   homepage "https://github.com/openagent-cli/openagent"
   url "https://github.com/openagent-cli/openagent/archive/refs/tags/v0.1.0.tar.gz"
   sha256 "PLACEHOLDER"
-  license "MIT"
+  license "Apache-2.0"
 
   depends_on "node@20"
 

@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ask-sol/openagent/blob/main/LICENSE"><img src="https://img.shields.io/github/license/ask-sol/openagent?style=flat-square&color=blue" alt="License" /></a>
+  <a href="https://github.com/ask-sol/openagent/blob/main/LICENSE"><img src="https://img.shields.io/github/license/ask-sol/openagent?style=flat-square&color=orange" alt="License" /></a>
   <a href="https://github.com/ask-sol/openagent/releases"><img src="https://img.shields.io/github/v/release/ask-sol/openagent?style=flat-square&color=green&label=version" alt="Version" /></a>
   <a href="https://github.com/ask-sol/openagent/stargazers"><img src="https://img.shields.io/github/stars/ask-sol/openagent?style=flat-square&color=yellow" alt="Stars" /></a>
   <a href="https://github.com/ask-sol/openagent/issues"><img src="https://img.shields.io/github/issues/ask-sol/openagent?style=flat-square&color=red" alt="Issues" /></a>
@@ -165,4 +165,4 @@ Contributions welcome. Open an issue or PR.
 
 ## License
 
-MIT
+Apache 2.0
