@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { getConfigDir } from "../config/settings.js";
 
-const CURRENT_VERSION = "0.1.23-20260417";
+const CURRENT_VERSION = "0.1.24-20260417";
 const CHECK_INTERVAL = 1000 * 60 * 60 * 4;
 const CHECK_FILE = "last-update-check.json";
 
