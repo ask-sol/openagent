@@ -65,6 +65,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
 
   const messagesRef = useRef<ProviderMessage[]>([]);
   const streamingTextRef = useRef("");
+  const streamThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messageCountRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
   const [queuedMessages, setQueuedMessages] = useState<string[]>([]);
@@ -351,7 +352,12 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
       const callbacks: QueryCallbacks = {
         onText: (text) => {
           streamingTextRef.current += text;
-          setStreamingText(streamingTextRef.current);
+          if (!streamThrottleRef.current) {
+            streamThrottleRef.current = setTimeout(() => {
+              setStreamingText(streamingTextRef.current);
+              streamThrottleRef.current = null;
+            }, 80);
+          }
         },
         onToolStart: (name) => {
           setActiveTool(name);
@@ -468,6 +474,10 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
         setError(err.message);
       }
 
+      if (streamThrottleRef.current) {
+        clearTimeout(streamThrottleRef.current);
+        streamThrottleRef.current = null;
+      }
       setStreamingText("");
       streamingTextRef.current = "";
       abortRef.current = null;
@@ -669,6 +679,14 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
       <Box flexDirection="column" flexGrow={1}>
         {displayMessages.map(renderMessage)}
       </Box>
+
+      {isProcessing && !streamingText && !activeTool && !permissionPrompt && (
+        <Box marginBottom={1}>
+          <Text color="green"><Spinner type="dots" /> </Text>
+          <Text color="green" bold>OpenAgent</Text>
+          <Text color="gray"> — {modelDisplay}</Text>
+        </Box>
+      )}
 
       {streamingText && (
         <Box flexDirection="column" marginBottom={1}>

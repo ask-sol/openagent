@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Box, Text } from "ink";
 import TextInput from "ink-text-input";
 import SelectInput from "ink-select-input";
@@ -7,7 +7,7 @@ import { totalmem } from "node:os";
 import { getAllProviders, getProvider } from "../providers/index.js";
 import { loadSettings, saveSettings } from "../config/settings.js";
 
-type Step = "type" | "cloud-provider" | "cloud-model" | "cloud-key" | "cloud-auth-method" | "claude-login" | "local-check" | "local-model" | "local-confirm" | "local-custom" | "pulling" | "installing-ollama";
+type Step = "type" | "cloud-provider" | "cloud-model" | "cloud-key" | "cloud-auth-method" | "claude-login" | "claude-proxy-setup" | "local-check" | "local-model" | "local-confirm" | "local-custom" | "pulling" | "installing-ollama";
 
 interface ModelPickerProps {
   onComplete: (provider: string, model: string) => void;
@@ -34,6 +34,7 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
   const [error, setError] = useState("");
   const [pullProgress, setPullProgress] = useState("");
   const [ollamaInstalled, setOllamaInstalled] = useState<boolean | null>(null);
+  const loginStartedRef = useRef(false);
 
   const settings = loadSettings();
   const sysRAM = Math.round(totalmem() / 1024 / 1024 / 1024);
@@ -46,6 +47,58 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
         });
       });
     }
+  }, [step]);
+
+  useEffect(() => {
+    if (step !== "claude-login" || loginStartedRef.current) return;
+    loginStartedRef.current = true;
+
+    import("../services/claudeOAuth.js").then(({ startOAuthLogin, loadOAuthTokens }) => {
+      startOAuthLogin().then(async (result) => {
+        if (result.success) {
+          const tokens = loadOAuthTokens();
+          if (tokens?.accessToken) {
+            const updated = loadSettings();
+            updated.provider = "anthropic";
+            updated.model = selectedModel;
+            updated.apiKey = tokens.accessToken;
+            saveSettings(updated);
+            onComplete("anthropic", selectedModel);
+          } else {
+            setPullProgress("Login succeeded but no token found.");
+            loginStartedRef.current = false;
+            setTimeout(() => setStep("cloud-auth-method"), 3000);
+          }
+        } else {
+          setPullProgress(result.error || "Login failed");
+          loginStartedRef.current = false;
+          setTimeout(() => setStep("cloud-auth-method"), 3000);
+        }
+      });
+    });
+  }, [step]);
+
+  useEffect(() => {
+    if (step !== "claude-proxy-setup" || loginStartedRef.current) return;
+    loginStartedRef.current = true;
+
+    import("../services/claudeProxy.js").then(({ setupClaudeMax, getProxyConfig }) => {
+      setupClaudeMax((msg) => setPullProgress(msg)).then((success) => {
+        if (success) {
+          const proxy = getProxyConfig();
+          const updated = loadSettings();
+          updated.provider = proxy.provider;
+          updated.model = selectedModel || proxy.model;
+          updated.apiKey = proxy.apiKey;
+          updated.baseUrl = proxy.baseUrl;
+          saveSettings(updated);
+          onComplete(proxy.provider, selectedModel || proxy.model);
+        } else {
+          loginStartedRef.current = false;
+          setTimeout(() => setStep("cloud-auth-method"), 3000);
+        }
+      });
+    });
   }, [step]);
 
   function startPull(model: string) {
@@ -185,14 +238,26 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
               updated.apiKey = "aws-iam";
               saveSettings(updated);
               onComplete("bedrock", item.value);
+            } else if (selectedProvider === "anthropic-max") {
+              setStep("claude-proxy-setup");
             } else if (selectedProvider === "anthropic") {
-              setStep("cloud-auth-method");
+              setStep("cloud-key");
             } else {
               setStep("cloud-key");
             }
           }}
           initialIndex={Math.max(provider.config.models.findIndex(m => m.id === provider.config.defaultModel), 0)}
         />
+      </Box>
+    );
+  }
+
+  if (step === "claude-proxy-setup") {
+    return (
+      <Box flexDirection="column" paddingLeft={2}>
+        <Text bold color="cyan"><Spinner type="dots" /> Setting up Claude Max access</Text>
+        <Text> </Text>
+        <Text color="yellow">{pullProgress || "Checking requirements..."}</Text>
       </Box>
     );
   }
@@ -204,12 +269,12 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
         <Text> </Text>
         <SelectInput
           items={[
-            { label: "Log in with Claude account (no API key needed)", value: "login" },
+            { label: "Use my Max/Pro subscription (automatic, no API key)", value: "proxy" },
             { label: "Enter an API key manually", value: "key" },
           ]}
           onSelect={(item) => {
-            if (item.value === "login") {
-              setStep("claude-login");
+            if (item.value === "proxy") {
+              setStep("claude-proxy-setup");
             } else {
               setStep("cloud-key");
             }
@@ -219,6 +284,7 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
     );
   }
 
+
   if (step === "claude-login") {
     return (
       <Box flexDirection="column" paddingLeft={2}>
@@ -226,29 +292,6 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
         <Text dimColor>Check your browser for the login page.</Text>
         <Text> </Text>
         <Text color="yellow">{pullProgress || "Opening browser..."}</Text>
-        {(() => {
-          import("../services/claudeOAuth.js").then(({ startOAuthLogin }) => {
-            startOAuthLogin().then((result) => {
-              if (result.success) {
-                import("../services/claudeOAuth.js").then(({ getOAuthApiKey }) => {
-                  const token = getOAuthApiKey();
-                  if (token) {
-                    const updated = loadSettings();
-                    updated.provider = "anthropic";
-                    updated.model = selectedModel;
-                    updated.apiKey = token;
-                    saveSettings(updated);
-                    onComplete("anthropic", selectedModel);
-                  }
-                });
-              } else {
-                setPullProgress(result.error || "Login failed");
-                setTimeout(() => setStep("cloud-auth-method"), 3000);
-              }
-            });
-          });
-          return null;
-        })()}
       </Box>
     );
   }

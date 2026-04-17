@@ -18,11 +18,11 @@ const config: ProviderConfig = {
   apiKeyEnvVar: "ANTHROPIC_API_KEY",
   apiKeyUrl: "https://console.anthropic.com/settings/keys",
   models: [
-    { id: "claude-opus-4-6-20260205", name: "Claude Opus 4.6", contextWindow: 1000000, maxOutput: 32000 },
-    { id: "claude-sonnet-4-6-20260217", name: "Claude Sonnet 4.6", contextWindow: 200000, maxOutput: 16000 },
-    { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5", contextWindow: 200000, maxOutput: 8192 },
+    { id: "claude-opus-4-7", name: "Claude Opus 4.7", contextWindow: 1000000, maxOutput: 32000 },
+    { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6", contextWindow: 200000, maxOutput: 16000 },
+    { id: "claude-haiku-4-5", name: "Claude Haiku 4.5", contextWindow: 200000, maxOutput: 8192 },
   ],
-  defaultModel: "claude-sonnet-4-6-20260217",
+  defaultModel: "claude-sonnet-4-6",
   supportsStreaming: true,
   supportsToolUse: true,
   supportsVision: true,
@@ -97,7 +97,14 @@ async function* streamRequest(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(options.apiKey.length > 200 ? { Authorization: `Bearer ${options.apiKey}` } : { "x-api-key": options.apiKey }),
+      ...(options.apiKey.startsWith("sk-ant-oat")
+        ? {
+            Authorization: `Bearer ${options.apiKey}`,
+            "anthropic-beta": "oauth-2025-04-20,claude-code-20250219,interleaved-thinking-2025-05-14,prompt-caching-scope-2026-01-05",
+            "x-app": "cli",
+            "User-Agent": "claude-code/1.0.0",
+          }
+        : { "x-api-key": options.apiKey }),
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify(body),
@@ -217,7 +224,14 @@ async function completeRequest(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(options.apiKey.length > 200 ? { Authorization: `Bearer ${options.apiKey}` } : { "x-api-key": options.apiKey }),
+      ...(options.apiKey.startsWith("sk-ant-oat")
+        ? {
+            Authorization: `Bearer ${options.apiKey}`,
+            "anthropic-beta": "oauth-2025-04-20,claude-code-20250219,interleaved-thinking-2025-05-14,prompt-caching-scope-2026-01-05",
+            "x-app": "cli",
+            "User-Agent": "claude-code/1.0.0",
+          }
+        : { "x-api-key": options.apiKey }),
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify(body),

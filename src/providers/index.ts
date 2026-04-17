@@ -9,12 +9,14 @@ import { xaiProvider } from "./xai.js";
 import { openrouterProvider } from "./openrouter.js";
 import { bedrockProvider } from "./bedrock.js";
 import { alibabaProvider } from "./alibaba.js";
+import { anthropicMaxProvider } from "./anthropicMax.js";
 import type { Provider, ProviderConfig } from "./types.js";
 
 export const providers: Map<string, Provider> = new Map([
   ["openrouter", openrouterProvider],
   ["openai", openaiProvider],
   ["anthropic", anthropicProvider],
+  ["anthropic-max", anthropicMaxProvider],
   ["gemini", geminiProvider],
   ["alibaba", alibabaProvider],
   ["mistral", mistralProvider],

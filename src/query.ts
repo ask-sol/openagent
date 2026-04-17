@@ -113,13 +113,6 @@ export async function runQueryLoop(
 
     try {
       let apiKey = settings.apiKey;
-      if (settings.provider === "anthropic" && existsSync(join(homedir(), ".openagent", ".claude-oauth.json"))) {
-        try {
-          const { refreshTokenIfNeeded } = await import("./services/claudeOAuth.js");
-          const refreshed = await refreshTokenIfNeeded();
-          if (refreshed) apiKey = refreshed;
-        } catch {}
-      }
 
       const stream = provider.stream(messages, tools, {
         model: settings.model,

@@ -98,6 +98,16 @@ program
     }
 
     const forceSetup = options.setup || false;
+
+    if (forceSetup) {
+      const { unlinkSync, existsSync } = await import("node:fs");
+      const { join } = await import("node:path");
+      const { homedir } = await import("node:os");
+      const oauthPath = join(homedir(), ".openagent", ".claude-oauth.json");
+      const configPath = join(homedir(), ".openagent", "config.json");
+      if (existsSync(oauthPath)) unlinkSync(oauthPath);
+      if (existsSync(configPath)) unlinkSync(configPath);
+    }
     const thinkingEnabled = options.think || false;
 
     const { waitUntilExit } = render(

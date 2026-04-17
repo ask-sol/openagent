@@ -5,9 +5,9 @@ import { join } from "node:path";
 import { getConfigDir } from "../config/settings.js";
 
 const CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
-const AUTH_URL = "https://platform.claude.com/oauth/authorize";
+const AUTH_URL = "https://claude.com/cai/oauth/authorize";
 const TOKEN_URL = "https://platform.claude.com/v1/oauth/token";
-const SCOPES = "user:profile user:inference";
+const SCOPES = "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload";
 
 function callbackPage(title: string, message: string, success: boolean): string {
   const color = success ? "#22c55e" : "#ef4444";
@@ -66,6 +66,31 @@ function saveOAuthTokens(tokens: OAuthTokens): void {
   writeFileSync(getCredentialsPath(), JSON.stringify(tokens, null, 2));
 }
 
+async function createApiKeyFromOAuth(oauthToken: string): Promise<string | null> {
+  try {
+    const res = await fetch(CREATE_KEY_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${oauthToken}`,
+        "Content-Type": "application/json",
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({ name: "openagent-session" }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      console.error("API key creation failed:", err);
+      return null;
+    }
+
+    const data = await res.json() as Record<string, any>;
+    return data.api_key || data.key || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function refreshTokenIfNeeded(): Promise<string | null> {
   const tokens = loadOAuthTokens();
   if (!tokens) return null;
@@ -86,18 +111,18 @@ export async function refreshTokenIfNeeded(): Promise<string | null> {
       }).toString(),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) return tokens.accessToken;
 
     const data = await res.json() as Record<string, any>;
-    const updated: OAuthTokens = {
-      accessToken: data.access_token,
+    const newToken = data.access_token;
+    saveOAuthTokens({
+      accessToken: newToken,
       refreshToken: data.refresh_token || tokens.refreshToken,
       expiresAt: Date.now() + (data.expires_in || 3600) * 1000,
-    };
-    saveOAuthTokens(updated);
-    return updated.accessToken;
+    });
+    return newToken;
   } catch {
-    return null;
+    return tokens.accessToken;
   }
 }
 
@@ -197,8 +222,9 @@ export async function startOAuthLogin(): Promise<{ success: boolean; error?: str
   });
 }
 
-export function getOAuthApiKey(): string | null {
+export async function getOAuthApiKey(): Promise<string | null> {
   const tokens = loadOAuthTokens();
   if (!tokens) return null;
-  return tokens.accessToken;
+  const apiKey = await createApiKeyFromOAuth(tokens.accessToken);
+  return apiKey;
 }
