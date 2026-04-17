@@ -364,7 +364,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
             streamThrottleRef.current = setTimeout(() => {
               setStreamingText(streamingTextRef.current);
               streamThrottleRef.current = null;
-            }, 80);
+            }, 150);
           }
         },
         onToolStart: (name) => {

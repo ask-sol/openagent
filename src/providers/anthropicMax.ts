@@ -182,14 +182,6 @@ async function* streamRequest(
         if (usage) {
           totalInputTokens += usage.input_tokens || 0;
           totalOutputTokens += usage.output_tokens || 0;
-          yield {
-            type: "done",
-            usage: {
-              inputTokens: totalInputTokens,
-              outputTokens: totalOutputTokens,
-              cacheReadTokens: usage.cache_read_input_tokens || 0,
-            },
-          };
         }
       }
 
