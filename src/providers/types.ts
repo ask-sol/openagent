@@ -51,6 +51,7 @@ export interface TokenUsage {
   outputTokens: number;
   cacheReadTokens?: number;
   cacheWriteTokens?: number;
+  costUsd?: number;
 }
 
 export interface ProviderResponse {

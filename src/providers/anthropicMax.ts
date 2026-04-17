@@ -228,6 +228,7 @@ async function* streamRequest(
             inputTokens: usage.input_tokens || totalInputTokens,
             outputTokens: usage.output_tokens || totalOutputTokens,
             cacheReadTokens: usage.cache_read_input_tokens || 0,
+            costUsd: cost,
           },
         };
 

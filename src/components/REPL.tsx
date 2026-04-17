@@ -194,18 +194,26 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
       if (terminalMode) {
         setDisplayMessages((prev) => [
           ...prev,
-          { role: "system", content: `$ ${trimmed}` },
+          { role: "system", content: `\x1b[33m$\x1b[0m ${trimmed}` },
         ]);
         setIsProcessing(true);
-        const { exec: execCmd } = await import("node:child_process");
-        execCmd(trimmed, { cwd: process.cwd(), maxBuffer: 1024 * 1024 * 5, timeout: 30000 }, (err, stdout, stderr) => {
-          const output = (stdout + (stderr ? stderr : "")).trim();
+        const { spawn: spawnCmd } = await import("node:child_process");
+        const parts = trimmed.match(/(?:[^\s"]+|"[^"]*")+/g) || [trimmed];
+        const cmd = parts[0];
+        const args = parts.slice(1).map((a: string) => a.replace(/^"|"$/g, ""));
+        const proc = spawnCmd(cmd, args, { cwd: process.cwd(), stdio: ["ignore", "pipe", "pipe"], shell: true });
+        let output = "";
+        proc.stdout?.on("data", (d: Buffer) => { output += d.toString(); });
+        proc.stderr?.on("data", (d: Buffer) => { output += d.toString(); });
+        proc.on("close", (code) => {
           setDisplayMessages((prev) => [
             ...prev,
-            { role: "system", content: output || (err ? `Exit code ${err.code}` : "(no output)") },
+            { role: "system", content: output.trim() || (code ? `Exit code ${code}` : "(no output)") },
           ]);
           setIsProcessing(false);
         });
+        abortRef.current = new AbortController();
+        abortRef.current.signal.addEventListener("abort", () => { proc.kill(); });
         return;
       }
 
@@ -438,6 +446,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
             inputTokens: prev.inputTokens + usage.inputTokens,
             outputTokens: prev.outputTokens + usage.outputTokens,
             cacheReadTokens: (prev.cacheReadTokens || 0) + (usage.cacheReadTokens || 0),
+            costUsd: usage.costUsd ? (prev.costUsd || 0) + usage.costUsd : prev.costUsd,
           }));
         },
         onError: (err) => {
@@ -772,7 +781,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
           <Text dimColor> • </Text>
           <Text color="white">{formatTokens(tokenUsage.inputTokens + tokenUsage.outputTokens)}</Text>
           <Text dimColor> tokens • </Text>
-          <Text color="green">{estimateCost(settings.model, tokenUsage).formatted}</Text>
+          <Text color="green">{tokenUsage.costUsd ? `$${tokenUsage.costUsd.toFixed(4)}` : estimateCost(settings.model, tokenUsage).formatted}</Text>
           <Text dimColor> • </Text>
           <Text color="cyan">{modelDisplay}</Text>
         </Box>

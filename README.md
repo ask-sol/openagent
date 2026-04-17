@@ -24,9 +24,10 @@
 
 | | **OpenAgent** | **Claude Code** |
 |:---|:---|:---|
-| **Providers** | 10 — OpenRouter, OpenAI, Anthropic, Gemini, Groq, Mistral, DeepSeek, xAI, AWS Bedrock, Ollama | Anthropic only |
-| **Local models** | Ollama with guided setup, RAM/GPU suggestions | No |
-| **Cost** | Free + bring your own key | $20/mo subscription |
+| **Providers** | 12 — OpenRouter, OpenAI, Anthropic, Gemini, Groq, Mistral, DeepSeek, xAI, AWS Bedrock, Alibaba Cloud, Ollama | Anthropic only |
+| **Max plan support** | Use your Claude Max/Pro subscription directly — no API key needed | Built-in |
+| **Local models** | Ollama with auto-install, guided setup, RAM/GPU suggestions | No |
+| **Cost** | Free + bring your own key, or use existing Claude subscription | $20/mo subscription |
 | **Token saving** | Concise mode, CONTEXT.session persistence, /compact | Manual |
 | **Permission modes** | Standard, Cautious, Unrestricted (with visual theme change) | Bypass only |
 | **Terminal mode** | Ctrl+T to run commands directly | No |
@@ -86,8 +87,10 @@ openagent -t        # Thinking mode
 | **Mistral** | Cloud | Mistral Large, Codestral, Small |
 | **Groq** | Cloud | Llama 3.3 70B, DeepSeek R1, Mixtral |
 | **DeepSeek** | Cloud | DeepSeek V3, R1 |
-| **xAI** | Cloud | Grok 3, Grok 3 Mini |
-| **Ollama** | Local | Any model — Llama, Qwen, CodeLlama, Mistral |
+| **xAI** | Cloud | Grok 4.20, Grok 4.1 Fast, Grok Code Fast |
+| **Alibaba Cloud** | Cloud | Qwen 3, Qwen Max, QwQ 32B |
+| **Anthropic (Max)** | Subscription | Claude Opus 4.7, Sonnet 4.6, Haiku 4.5 — uses your Max/Pro plan |
+| **Ollama** | Local | Any model — auto-install, auto-download, RAM/GPU guidance |
 
 Switch anytime with `/model` — categorized picker (Cloud vs Local), asks for API key when needed.
 
