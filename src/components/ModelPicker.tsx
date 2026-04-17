@@ -7,7 +7,7 @@ import { totalmem } from "node:os";
 import { getAllProviders, getProvider } from "../providers/index.js";
 import { loadSettings, saveSettings } from "../config/settings.js";
 
-type Step = "type" | "cloud-provider" | "cloud-model" | "cloud-key" | "local-check" | "local-model" | "local-confirm" | "local-custom" | "pulling" | "installing-ollama";
+type Step = "type" | "cloud-provider" | "cloud-model" | "cloud-key" | "cloud-auth-method" | "claude-login" | "local-check" | "local-model" | "local-confirm" | "local-custom" | "pulling" | "installing-ollama";
 
 interface ModelPickerProps {
   onComplete: (provider: string, model: string) => void;
@@ -185,12 +185,70 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
               updated.apiKey = "aws-iam";
               saveSettings(updated);
               onComplete("bedrock", item.value);
+            } else if (selectedProvider === "anthropic") {
+              setStep("cloud-auth-method");
             } else {
               setStep("cloud-key");
             }
           }}
           initialIndex={Math.max(provider.config.models.findIndex(m => m.id === provider.config.defaultModel), 0)}
         />
+      </Box>
+    );
+  }
+
+  if (step === "cloud-auth-method") {
+    return (
+      <Box flexDirection="column" paddingLeft={2}>
+        <Text bold color="cyan">How do you want to connect to Claude?</Text>
+        <Text> </Text>
+        <SelectInput
+          items={[
+            { label: "Log in with Claude account (no API key needed)", value: "login" },
+            { label: "Enter an API key manually", value: "key" },
+          ]}
+          onSelect={(item) => {
+            if (item.value === "login") {
+              setStep("claude-login");
+            } else {
+              setStep("cloud-key");
+            }
+          }}
+        />
+      </Box>
+    );
+  }
+
+  if (step === "claude-login") {
+    return (
+      <Box flexDirection="column" paddingLeft={2}>
+        <Text bold color="cyan"><Spinner type="dots" /> Logging in to Claude...</Text>
+        <Text dimColor>Check your browser for the login page.</Text>
+        <Text> </Text>
+        <Text color="yellow">{pullProgress || "Opening browser..."}</Text>
+        {(() => {
+          import("../services/claudeOAuth.js").then(({ startOAuthLogin }) => {
+            startOAuthLogin().then((result) => {
+              if (result.success) {
+                import("../services/claudeOAuth.js").then(({ getOAuthApiKey }) => {
+                  const token = getOAuthApiKey();
+                  if (token) {
+                    const updated = loadSettings();
+                    updated.provider = "anthropic";
+                    updated.model = selectedModel;
+                    updated.apiKey = token;
+                    saveSettings(updated);
+                    onComplete("anthropic", selectedModel);
+                  }
+                });
+              } else {
+                setPullProgress(result.error || "Login failed");
+                setTimeout(() => setStep("cloud-auth-method"), 3000);
+              }
+            });
+          });
+          return null;
+        })()}
       </Box>
     );
   }

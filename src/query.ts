@@ -6,7 +6,9 @@ import { loadSettings } from "./config/settings.js";
 import { shouldPrompt, isDenied, getEffectiveMode } from "./config/permissions.js";
 import { loadContextSession, appendMessage, updateContextSession } from "./session/history.js";
 import { exec } from "node:child_process";
-import { readdirSync } from "node:fs";
+import { readdirSync, existsSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 export interface QueryCallbacks {
   onText: (text: string) => void;
@@ -110,9 +112,18 @@ export async function runQueryLoop(
     let stopReason: "end_turn" | "tool_use" | "max_tokens" | "error" = "end_turn";
 
     try {
+      let apiKey = settings.apiKey;
+      if (settings.provider === "anthropic" && existsSync(join(homedir(), ".openagent", ".claude-oauth.json"))) {
+        try {
+          const { refreshTokenIfNeeded } = await import("./services/claudeOAuth.js");
+          const refreshed = await refreshTokenIfNeeded();
+          if (refreshed) apiKey = refreshed;
+        } catch {}
+      }
+
       const stream = provider.stream(messages, tools, {
         model: settings.model,
-        apiKey: settings.apiKey,
+        apiKey,
         baseUrl: settings.baseUrl,
         systemPrompt,
         maxTokens: settings.maxTokens || Math.min(provider.config.models.find((m) => m.id === settings.model)?.maxOutput || 8192, 16000),
