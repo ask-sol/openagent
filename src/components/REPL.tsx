@@ -33,6 +33,7 @@ import { detectProject, formatProjectInfo } from "../utils/projectDetect.js";
 import { estimateCost } from "../utils/costTracker.js";
 import { renderMarkdown } from "../utils/renderMarkdown.js";
 import { getContextMeter } from "../utils/contextMeter.js";
+import { getCurrentVersion } from "../utils/updateCheck.js";
 
 interface MessageDisplay {
   role: "user" | "assistant" | "tool" | "system";
@@ -670,16 +671,18 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
         return (
           <Box flexDirection="column" marginBottom={1}>
             <Text>{getBanner(termSize.columns)}</Text>
+            <Text dimColor>v{getCurrentVersion()} • {modelDisplay} • {settings.responseMode}
+              {thinking ? " • thinking" : ""}</Text>
             <Text color="gray">
-              {modelDisplay} • {settings.responseMode} mode • {permMode.label} [{permMode.symbol}]
-              {thinking ? " • thinking" : ""}
+              {permMode.mode === "unrestricted"
+                ? "\x1b[31m⚠ unrestricted\x1b[0m"
+                : permMode.label} • /help for commands • Ctrl+T terminal
             </Text>
             {project && (
-              <Text color="gray" dimColor>
+              <Text color="cyan" dimColor>
                 {formatProjectInfo(project)}
               </Text>
             )}
-            <Text color="gray" dimColor>Type /help for commands, or start typing to chat</Text>
             <Text> </Text>
           </Box>
         );
