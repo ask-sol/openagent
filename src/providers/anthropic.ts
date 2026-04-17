@@ -97,7 +97,7 @@ async function* streamRequest(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": options.apiKey,
+      ...(options.apiKey.length > 200 ? { Authorization: `Bearer ${options.apiKey}` } : { "x-api-key": options.apiKey }),
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify(body),
@@ -217,7 +217,7 @@ async function completeRequest(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": options.apiKey,
+      ...(options.apiKey.length > 200 ? { Authorization: `Bearer ${options.apiKey}` } : { "x-api-key": options.apiKey }),
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify(body),

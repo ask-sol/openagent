@@ -9,6 +9,27 @@ const AUTH_URL = "https://platform.claude.com/oauth/authorize";
 const TOKEN_URL = "https://platform.claude.com/v1/oauth/token";
 const SCOPES = "user:profile user:inference";
 
+function callbackPage(title: string, message: string, success: boolean): string {
+  const color = success ? "#22c55e" : "#ef4444";
+  const icon = success ? "✓" : "✗";
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>OpenAgent</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#fff}
+.card{text-align:center;padding:3rem;border-radius:16px;background:#111;border:1px solid #222;max-width:420px}
+.icon{font-size:3rem;width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1.5rem;background:${color}15;border:2px solid ${color}}
+h1{font-size:1.5rem;margin-bottom:0.5rem;color:${color}}
+p{color:#888;line-height:1.6}
+.brand{margin-top:2rem;color:#444;font-size:0.8rem}
+</style></head><body>
+<div class="card">
+<div class="icon" style="color:${color}">${icon}</div>
+<h1>${title}</h1>
+<p>${message}</p>
+<p class="brand">OpenAgent</p>
+</div></body></html>`;
+}
+
 interface OAuthTokens {
   accessToken: string;
   refreshToken: string;
@@ -94,20 +115,20 @@ export async function startOAuthLogin(): Promise<{ success: boolean; error?: str
 
         if (returnedState !== state) {
           res.writeHead(400, { "Content-Type": "text/html" });
-          res.end("<h2>State mismatch. Try again.</h2>");
+          res.end(callbackPage("Error", "State mismatch. Please try again.", false));
           return;
         }
 
         if (!code) {
           res.writeHead(400, { "Content-Type": "text/html" });
-          res.end("<h2>Authorization denied.</h2>");
+          res.end(callbackPage("Denied", "Authorization was denied.", false));
           server.close();
           resolve({ success: false, error: "Authorization denied" });
           return;
         }
 
         res.writeHead(200, { "Content-Type": "text/html" });
-        res.end("<h2>OpenAgent connected to Claude! You can close this tab.</h2>");
+        res.end(callbackPage("Connected", "OpenAgent is connected to Claude. You can close this tab.", true));
 
         try {
           const tokenRes = await fetch(TOKEN_URL, {
