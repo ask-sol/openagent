@@ -1,6 +1,6 @@
 {
   "name": "openagent",
-  "version": "0.1.19-20260416",
+  "version": "0.1.20-20260416",
   "description": "Open-source agentic coding CLI — multi-provider, token-efficient, extensible",
   "type": "module",
   "bin": {
