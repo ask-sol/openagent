@@ -70,6 +70,8 @@ async function* streamRequest(
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
   let buffer = "";
+  let toolCount = 0;
+  let agentHeaderShown = false;
 
   const events: Array<Record<string, any>> = [];
   let resolveNext: (() => void) | null = null;
@@ -106,75 +108,65 @@ async function* streamRequest(
         const content = event.message?.content || [];
         for (const block of content) {
           if (block.type === "thinking" && block.thinking) {
-            yield { type: "text", text: `<think>${block.thinking}</think>\n` };
+            yield { type: "text", text: `{{think}}${block.thinking}{{/think}}\n` };
           }
           if (block.type === "text" && block.text) {
-            yield { type: "text", text: block.text };
+            let txt = block.text;
+            txt = txt.replace(/<think>[\s\S]*?<\/think>/g, "");
+            txt = txt.replace(/Links:.*?\{.*?"title".*?\}.*$/gm, "");
+            txt = txt.replace(/^Links:.*$/gm, "");
+            txt = txt.replace(/^\s*\n/gm, "\n");
+            if (txt.trim()) yield { type: "text", text: txt };
           }
           if (block.type === "tool_use") {
-            const id = block.id || `call_${Date.now()}`;
+            toolCount++;
             const input = block.input || {};
             const name = block.name || "unknown";
             const filePath = input.file_path || input.path || "";
             const fileName = filePath ? filePath.split("/").pop() : "";
 
-            let meta = name;
-            let detail = "";
+            if (!agentHeaderShown) {
+              agentHeaderShown = true;
+              yield { type: "text", text: `\n● Agent\n` };
+            }
 
-            const G = "\x1b[32m";
-            const R = "\x1b[31m";
-            const C = "\x1b[36m";
-            const Y = "\x1b[33m";
-            const D = "\x1b[90m";
-            const X = "\x1b[0m";
+            let toolLine = "";
+            let detail = "";
 
             if (name === "Bash") {
               const cmd = input.command || input.cmd || "";
-              meta = `${Y}Bash${X}(${cmd.length > 60 ? cmd.slice(0, 57) + "..." : cmd})`;
+              toolLine = `Bash(${cmd.length > 70 ? cmd.slice(0, 67) + "..." : cmd})`;
             } else if (name === "Write") {
-              meta = `${G}Create${X}(${C}${filePath}${X})`;
-              const content = input.content || "";
-              const lines = content.split("\n");
-              detail = `${D}  ⎿ ${G}Added ${lines.length} lines${X}\n`;
-              const show = Math.min(lines.length, 20);
-              for (let i = 0; i < show; i++) {
-                const num = String(i + 1).padStart(4);
-                detail += `${D}${num}${X} ${G}+${X} ${lines[i]}\n`;
-              }
-              if (lines.length > 20) detail += `${D}     ... +${lines.length - 20} more lines${X}\n`;
+              toolLine = `Create(${fileName})`;
+              const fileContent = input.content || "";
+              const lines = fileContent.split("\n");
+              const show = Math.min(lines.length, 12);
+              for (let i = 0; i < show; i++) detail += `${String(i + 1).padStart(6)} + ${lines[i]}\n`;
+              if (lines.length > 12) detail += `       ... +${lines.length - 12} more lines\n`;
             } else if (name === "Edit") {
-              meta = `${Y}Update${X}(${C}${filePath}${X})`;
-              const oldLines = (input.old_string || input.old_str || "").split("\n");
-              const newLines = (input.new_string || input.new_str || "").split("\n");
-              detail = `${D}  ⎿ ${G}Added ${newLines.length} lines${X}, ${R}removed ${oldLines.length} lines${X}\n`;
-              const showOld = Math.min(oldLines.length, 12);
-              const showNew = Math.min(newLines.length, 12);
-              for (let i = 0; i < showOld; i++) {
-                const num = String(i + 1).padStart(4);
-                detail += `${D}${num}${X} ${R}-${X} ${R}${oldLines[i]}${X}\n`;
-              }
-              if (oldLines.length > 12) detail += `${D}     ... ${oldLines.length - 12} more removed${X}\n`;
-              for (let i = 0; i < showNew; i++) {
-                const num = String(i + 1).padStart(4);
-                detail += `${D}${num}${X} ${G}+${X} ${G}${newLines[i]}${X}\n`;
-              }
-              if (newLines.length > 12) detail += `${D}     ... ${newLines.length - 12} more added${X}\n`;
+              toolLine = `Edit(${fileName})`;
+              const oldL = (input.old_string || input.old_str || "").split("\n");
+              const newL = (input.new_string || input.new_str || "").split("\n");
+              for (const l of oldL.slice(0, 6)) detail += `       - ${l}\n`;
+              for (const l of newL.slice(0, 6)) detail += `       + ${l}\n`;
             } else if (name === "Read") {
-              meta = `${C}Read${X}(${fileName})`;
+              toolLine = `Read(${fileName})`;
             } else if (name === "WebSearch") {
-              meta = `${C}WebSearch${X}(${input.query || ""})`;
+              toolLine = `Web(${input.query || ""})`;
             } else if (name === "WebFetch") {
-              meta = `${C}WebFetch${X}(${(input.url || "").slice(0, 50)})`;
+              toolLine = `Fetch(${(input.url || "").slice(0, 60)})`;
             } else if (name === "Glob") {
-              meta = `${D}Glob${X}(${input.pattern || ""})`;
+              toolLine = `Glob(${input.pattern || ""})`;
             } else if (name === "Grep") {
-              meta = `${D}Grep${X}(${input.pattern || ""})`;
+              toolLine = `Grep(${input.pattern || ""})`;
+            } else if (name === "ToolSearch") {
+              toolLine = `Search(${input.query || ""})`;
+            } else {
+              toolLine = `${name}(${JSON.stringify(input).slice(0, 50)})`;
             }
 
-            yield { type: "text", text: `\n${meta}\n` };
-            if (detail) {
-              yield { type: "text", text: `${detail}\n` };
-            }
+            yield { type: "text", text: `   ⎿ ${toolLine}\n` };
+            if (detail) yield { type: "text", text: detail };
           }
         }
 
@@ -198,8 +190,8 @@ async function* streamRequest(
             if (resultText) {
               const truncated = resultText.length > 200 ? resultText.slice(0, 200) + "..." : resultText;
               const isSuccess = truncated.includes("successfully") || truncated.includes("passed") || truncated.includes("created");
-              const prefix = isSuccess ? "\x1b[32m✓\x1b[0m" : "\x1b[90m⎿\x1b[0m";
-              yield { type: "text", text: `${prefix} \x1b[90m${truncated}\x1b[0m\n` };
+              const prefix = isSuccess ? "✓" : "⎿";
+              yield { type: "text", text: `${prefix} ${truncated}\n` };
             }
           }
         }
@@ -212,7 +204,10 @@ async function* streamRequest(
         const turns = event.num_turns || 1;
         const durationSec = (duration / 1000).toFixed(1);
 
-        yield { type: "text", text: `\n\x1b[90m✓ Done in ${durationSec}s • ${turns} turn${turns > 1 ? "s" : ""} • $${cost.toFixed(4)}\x1b[0m` };
+        const toolInfo = toolCount > 0 ? ` • ${toolCount} tool${toolCount > 1 ? "s" : ""}` : "";
+        yield { type: "text", text: `\n✓ ${durationSec}s${toolInfo} • $${cost.toFixed(4)}` };
+        agentHeaderShown = false;
+        toolCount = 0;
 
         yield {
           type: "done",

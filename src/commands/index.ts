@@ -509,8 +509,11 @@ cmd("whoami", ["me", "account"], "Info", "Show current identity and account info
   return { output: `Provider: ${settings.provider}\nModel: ${settings.model}\nConfig: ${getConfigDir()}` };
 });
 
-cmd("version", ["v", "ver"], "Info", "Show OpenAgent version", () => {
-  return { output: "OpenAgent v0.1.0" };
+cmd("version", ["v", "ver", "about"], "Info", "Show OpenAgent version and info", async () => {
+  const { getCurrentVersion } = await import("../utils/updateCheck.js");
+  const { loadSettings } = await import("../config/settings.js");
+  const settings = loadSettings();
+  return { output: `OpenAgent v${getCurrentVersion()}\n  Provider: ${settings.provider}\n  Model: ${settings.model}\n  github.com/ask-sol/openagent` };
 });
 
 cmd("doctor", ["diagnose", "health"], "Info", "Check system health and dependencies", (_args, ctx) => {
@@ -802,8 +805,66 @@ cmd("setup-x", ["connect-x", "setup-twitter", "connect-twitter"], "Social", "Con
   return { output: "", action: "setup-x" };
 });
 
-cmd("debug", ["inspect"], "Dev", "Debug mode — show raw API requests/responses", () => {
-  return { output: "Debug mode toggled. Raw API traffic will be logged to ~/.openagent/debug.log" };
+cmd("debug", ["diag", "network"], "Dev", "Debug mode — test network, show request info", async (_args, ctx) => {
+  const { exec } = await import("node:child_process");
+  const { loadSettings } = await import("../config/settings.js");
+  const { getProvider } = await import("../providers/index.js");
+
+  const settings = loadSettings();
+  const provider = getProvider(settings.provider);
+
+  const providerHosts: Record<string, string> = {
+    openai: "api.openai.com",
+    anthropic: "api.anthropic.com",
+    "anthropic-max": "api.anthropic.com",
+    gemini: "generativelanguage.googleapis.com",
+    openrouter: "openrouter.ai",
+    mistral: "api.mistral.ai",
+    groq: "api.groq.com",
+    deepseek: "api.deepseek.com",
+    xai: "api.x.ai",
+    ollama: "localhost",
+    bedrock: "bedrock-runtime.us-east-1.amazonaws.com",
+    alibaba: "dashscope-intl.aliyuncs.com",
+  };
+
+  const host = providerHosts[settings.provider] || "unknown";
+  let output = "Debug Info\n\n";
+  output += `  Provider:  ${settings.provider}\n`;
+  output += `  Model:     ${settings.model}\n`;
+  output += `  Base URL:  ${settings.baseUrl || "(default)"}\n`;
+  output += `  API Key:   ${settings.apiKey ? settings.apiKey.slice(0, 12) + "..." : "(none)"}\n`;
+  output += `  Mode:      ${settings.responseMode}\n`;
+  output += `  Max Tokens: ${settings.maxTokens || "auto"}\n`;
+  output += `  Session:   ${ctx.sessionId.slice(0, 8)}...\n\n`;
+
+  output += "Network Check\n\n";
+
+  const ping = (h: string): Promise<string> => new Promise((resolve) => {
+    exec(`curl -s -o /dev/null -w "%{http_code} %{time_total}s" --connect-timeout 5 https://${h}/ 2>&1`, { timeout: 8000 }, (err, stdout) => {
+      if (err || !stdout.trim()) resolve(`  ${h}: \x1b[31m✗ unreachable\x1b[0m`);
+      else {
+        const parts = stdout.trim().split(" ");
+        resolve(`  ${h}: \x1b[32m✓\x1b[0m ${parts[0]} (${parts[1] || "?"})`);
+      }
+    });
+  });
+
+  if (host === "localhost") {
+    const ollamaCheck = await new Promise<string>((resolve) => {
+      exec("curl -s http://localhost:11434/api/tags", { timeout: 3000 }, (err) => {
+        resolve(err ? "  localhost:11434: \x1b[31m✗ Ollama not running\x1b[0m" : "  localhost:11434: \x1b[32m✓ Ollama running\x1b[0m");
+      });
+    });
+    output += ollamaCheck + "\n";
+  } else {
+    output += await ping(host) + "\n";
+  }
+
+  output += await ping("api.anthropic.com") + "\n";
+  output += await ping("openrouter.ai") + "\n";
+
+  return { output };
 });
 
 cmd("keybindings", ["keys", "shortcuts"], "UI", "Show keyboard shortcuts", () => {
@@ -817,7 +878,7 @@ cmd("upgrade", ["update"], "General", "Check for updates and upgrade OpenAgent",
 });
 
 cmd("changelog", ["release-notes", "whats-new"], "Info", "Show recent changes", () => {
-  return { output: "OpenAgent v0.1.0 — Initial release\n  Multi-provider support (8 providers)\n  Agentic coding tools\n  Web search & fetch\n  Reddit & X posting\n  Local session resume\n  CONTEXT.session persistence\n  Permission modes\n  50+ slash commands" };
+  return { output: "OpenAgent v0.1.25\n  12 providers including Anthropic Max plan support\n  Claude Code integration for Max/Pro subscribers\n  70+ slash commands\n  Local model support with Ollama auto-install\n  Web search, social media, MCP servers\n  Discord & WhatsApp bridges\n  Terminal mode (Ctrl+T)\n  Permission modes with visual theme\n  Real-time cost tracking\n  Auto-update via Homebrew" };
 });
 
 cmd("feedback", ["report", "bug"], "Info", "Submit feedback or report a bug", () => {

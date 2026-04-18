@@ -5,52 +5,31 @@ export function renderMarkdown(text: string): string {
 
   result = result.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, _lang, code) => {
     const lines = code.trimEnd().split("\n");
-    const formatted = lines.map((l: string) => `  ${chalk.gray("│")} ${chalk.white(l)}`).join("\n");
+    const formatted = lines.map((l: string) => `  ${chalk.gray("│")} ${l}`).join("\n");
     return `\n${chalk.gray("  ┌─")}\n${formatted}\n${chalk.gray("  └─")}\n`;
   });
 
   result = result.replace(/`([^`]+)`/g, (_match, code) => {
-    return chalk.cyan(code);
+    return chalk.white(code);
   });
 
-  result = result.replace(/\*\*\*([^*]+)\*\*\*/g, (_match, text) => {
-    return chalk.bold.italic(text);
-  });
+  result = result.replace(/\*\*\*([^*]+)\*\*\*/g, (_match, t) => chalk.bold.italic(t));
+  result = result.replace(/\*\*([^*]+)\*\*/g, (_match, t) => chalk.bold(t));
+  result = result.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, (_match, t) => chalk.italic(t));
+  result = result.replace(/~~([^~]+)~~/g, (_match, t) => chalk.strikethrough(t));
 
-  result = result.replace(/\*\*([^*]+)\*\*/g, (_match, text) => {
-    return chalk.bold(text);
-  });
+  result = result.replace(/^#{1,6}\s+(.+)$/gm, (_match, t) => chalk.bold(t));
 
-  result = result.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, (_match, text) => {
-    return chalk.italic(text);
-  });
+  result = result.replace(/^(\s*)[-*•]\s+/gm, (_match, indent) => `${indent}- `);
 
-  result = result.replace(/~~([^~]+)~~/g, (_match, text) => {
-    return chalk.strikethrough(text);
-  });
+  result = result.replace(/^>\s+(.+)$/gm, (_match, t) => chalk.gray(`  | ${t}`));
 
-  result = result.replace(/^#{1,6}\s+(.+)$/gm, (_match, text) => {
-    return chalk.bold(text);
-  });
+  result = result.replace(/^---+$/gm, () => chalk.gray("─".repeat(30)));
 
-  result = result.replace(/^(\s*)[-*]\s+/gm, (_match, indent) => {
-    return `${indent}${chalk.gray("•")} `;
-  });
+  result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, t, url) => `${t} (${chalk.gray(url)})`);
 
-  result = result.replace(/^(\s*)\d+\.\s+/gm, (_match, indent) => {
-    return `${indent}${chalk.gray("›")} `;
-  });
-
-  result = result.replace(/^>\s+(.+)$/gm, (_match, text) => {
-    return `${chalk.gray("  │")} ${chalk.italic(text)}`;
-  });
-
-  result = result.replace(/^---+$/gm, () => {
-    return chalk.gray("─".repeat(40));
-  });
-
-  result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, text, url) => {
-    return `${chalk.cyan.underline(text)} ${chalk.gray(`(${url})`)}`;
+  result = result.replace(/\{\{think\}\}([\s\S]*?)\{\{\/think\}\}/g, (_match, thought) => {
+    return chalk.dim.gray(thought);
   });
 
   return result;

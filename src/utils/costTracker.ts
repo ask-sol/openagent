@@ -30,6 +30,9 @@ const COST_PER_1M: Record<string, { input: number; output: number }> = {
   "google/gemini-2.5-flash": { input: 0.15, output: 0.6 },
   "deepseek/deepseek-chat": { input: 0.27, output: 1.1 },
   "deepseek/deepseek-r1": { input: 0.55, output: 2.19 },
+  "claude-opus-4-7": { input: 15.0, output: 75.0 },
+  "claude-sonnet-4-6": { input: 3.0, output: 15.0 },
+  "claude-haiku-4-5": { input: 0.8, output: 4.0 },
 };
 
 export function estimateCost(model: string, usage: TokenUsage): { cost: number; formatted: string } {

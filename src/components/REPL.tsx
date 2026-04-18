@@ -72,6 +72,8 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
   const [queuedMessages, setQueuedMessages] = useState<string[]>([]);
   const [expandedView, setExpandedView] = useState(false);
   const [terminalMode, setTerminalMode] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { exit } = useApp();
   const { stdout } = useStdout();
   const statusWord = useStatusWord(isProcessing);
@@ -351,6 +353,9 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
       }
 
       setIsProcessing(true);
+      setElapsed(0);
+      if (elapsedRef.current) clearInterval(elapsedRef.current);
+      elapsedRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
       setStreamingText("");
       streamingTextRef.current = "";
       setActiveTool("");
@@ -447,7 +452,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
             inputTokens: prev.inputTokens + usage.inputTokens,
             outputTokens: prev.outputTokens + usage.outputTokens,
             cacheReadTokens: (prev.cacheReadTokens || 0) + (usage.cacheReadTokens || 0),
-            costUsd: usage.costUsd ? (prev.costUsd || 0) + usage.costUsd : prev.costUsd,
+            costUsd: usage.costUsd != null ? (prev.costUsd || 0) + usage.costUsd : prev.costUsd,
           }));
         },
         onError: (err) => {
@@ -461,24 +466,10 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
         messageCountRef.current = result.messages.length;
 
         if (streamingTextRef.current) {
-          let finalText = streamingTextRef.current;
-          const thinkMatch = finalText.match(/<think>([\s\S]*?)<\/think>/);
-          if (thinkMatch) {
-            const thinkContent = thinkMatch[1].trim();
-            finalText = finalText.replace(/<think>[\s\S]*?<\/think>/, "").trim();
-            if (thinkContent) {
-              setDisplayMessages((prev) => [
-                ...prev,
-                { role: "system", content: `[thinking] ${thinkContent}` },
-              ]);
-            }
-          }
-          if (finalText) {
-            setDisplayMessages((prev) => [
-              ...prev,
-              { role: "assistant", content: finalText },
-            ]);
-          }
+          setDisplayMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: streamingTextRef.current },
+          ]);
         }
       } catch (err: any) {
         setError(err.message);
@@ -491,6 +482,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
       setStreamingText("");
       streamingTextRef.current = "";
       abortRef.current = null;
+      if (elapsedRef.current) { clearInterval(elapsedRef.current); elapsedRef.current = null; }
       setIsProcessing(false);
 
       setQueuedMessages((prev) => {
@@ -694,7 +686,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
 
       {isProcessing && !streamingText && !activeTool && !permissionPrompt && (
         <Box marginBottom={1}>
-          <Text color="green"><Spinner type="dots" /> </Text>
+          <Text bold>● </Text>
           <Text color="green" bold>OpenAgent</Text>
           <Text color="gray"> — {modelDisplay}</Text>
         </Box>
@@ -749,9 +741,10 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
         <Box borderStyle="single" borderColor={terminalMode ? "magenta" : permMode.mode === "unrestricted" ? "red" : "gray"} paddingLeft={1} width={termSize.columns}>
           <Box flexGrow={1}>
             {isProcessing ? (
-              <Text color="cyan">
-                <Spinner type="dots" /> <Text color="white">{statusWord}</Text><Text color="gray">...</Text>
-              </Text>
+              <Box>
+                <Text color="white">{activeTool ? "Agent" : statusWord}  </Text>
+                <Text dimColor>({elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`} • ↓ {formatTokens(tokenUsage.inputTokens + tokenUsage.outputTokens)} tokens)</Text>
+              </Box>
             ) : (
               <Box>
                 <Text color={terminalMode ? "magenta" : "cyan"} bold>{terminalMode ? "$" : "❯"} </Text>
@@ -784,7 +777,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
           <Text dimColor> • </Text>
           <Text color="white">{formatTokens(tokenUsage.inputTokens + tokenUsage.outputTokens)}</Text>
           <Text dimColor> tokens • </Text>
-          <Text color="green">{tokenUsage.costUsd ? `$${tokenUsage.costUsd.toFixed(4)}` : estimateCost(settings.model, tokenUsage).formatted}</Text>
+          <Text color="green">{tokenUsage.costUsd ? `$${tokenUsage.costUsd.toFixed(4)}` : (tokenUsage.inputTokens + tokenUsage.outputTokens > 0 ? estimateCost(settings.model, tokenUsage).formatted : "$0")}</Text>
           <Text dimColor> • </Text>
           <Text color="cyan">{modelDisplay}</Text>
         </Box>

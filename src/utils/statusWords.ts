@@ -5,7 +5,7 @@ const STATUS_WORDS = [
   "Working",
   "Cooking",
   "Brewing",
-  "Agent-ing",
+  "Agent",
   "Crafting",
   "Conjuring",
   "Scheming",
