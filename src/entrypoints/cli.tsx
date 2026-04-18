@@ -20,7 +20,7 @@ const program = new Command();
 program
   .name("openagent")
   .description("Open-source agentic coding CLI — multi-provider, token-efficient, extensible")
-  .version("0.1.27-20260417")
+  .version("0.1.28-20260418")
   .option("--setup", "Run the setup wizard")
   .option("--provider <id>", "Override provider (openai, anthropic, gemini, etc.)")
   .option("--model <id>", "Override model")
