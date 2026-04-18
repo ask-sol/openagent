@@ -1,48 +1,61 @@
+<h1 align="center">OpenAgent</h1>
+
 <p align="center">
-  <strong>Open-source agentic coding CLI for your terminal.</strong><br>
-  Multi-provider. Token-efficient. Extensible.
+  <strong>The open-source Claude Code alternative that works with any AI provider.</strong><br>
+  Use your existing Claude Max subscription, OpenRouter, GPT-5, Gemini, Ollama, or any of 12 providers.
 </p>
 
 <p align="center">
-  <a href="https://github.com/ask-sol/openagent/blob/main/LICENSE"><img src="https://img.shields.io/github/license/ask-sol/openagent?style=flat-square&color=orange" alt="License" /></a>
-  <a href="https://github.com/ask-sol/openagent/releases"><img src="https://img.shields.io/github/v/release/ask-sol/openagent?style=flat-square&color=green&label=version" alt="Version" /></a>
-  <a href="https://github.com/ask-sol/openagent/stargazers"><img src="https://img.shields.io/github/stars/ask-sol/openagent?style=flat-square&color=yellow" alt="Stars" /></a>
-  <a href="https://github.com/ask-sol/openagent/issues"><img src="https://img.shields.io/github/issues/ask-sol/openagent?style=flat-square&color=red" alt="Issues" /></a>
-  <img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen?style=flat-square" alt="Node" />
-  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platform" />
-  <img src="https://img.shields.io/badge/providers-10-blueviolet?style=flat-square" alt="Providers" />
-  <img src="https://img.shields.io/badge/commands-70%2B-orange?style=flat-square" alt="Commands" />
+  <a href="https://github.com/ask-sol/openagent/stargazers"><img src="https://img.shields.io/github/stars/ask-sol/openagent?style=for-the-badge&color=yellow" alt="Stars" /></a>
+  <a href="https://github.com/ask-sol/openagent/releases"><img src="https://img.shields.io/github/v/release/ask-sol/openagent?style=for-the-badge&color=green&label=version" alt="Version" /></a>
+  <a href="https://github.com/ask-sol/openagent/blob/main/LICENSE"><img src="https://img.shields.io/github/license/ask-sol/openagent?style=for-the-badge&color=blue" alt="License" /></a>
 </p>
 
 <p align="center">
   <img src="assets/demo.gif" alt="OpenAgent Demo" width="700" />
 </p>
 
+<p align="center">
+  <a href="#install">Install</a> •
+  <a href="#why-openagent">Why OpenAgent</a> •
+  <a href="#providers">Providers</a> •
+  <a href="#features">Features</a> •
+  <a href="#commands">Commands</a> •
+  <a href="#contributing">Contributing</a>
+</p>
+
 ---
 
-## OpenAgent vs Claude Code
+## Why OpenAgent?
+
+**Already paying for Claude Max?** OpenAgent lets you use your existing subscription directly — no separate API key, no extra cost. Just log in and code.
+
+**Want provider freedom?** Switch between GPT-5, Claude, Gemini, Grok, DeepSeek, or local models with one command. No lock-in.
+
+**Want something open?** OpenAgent is Apache 2.0 licensed. Fork it, extend it, self-host it.
+
+### OpenAgent vs Claude Code
 
 | | **OpenAgent** | **Claude Code** |
 |:---|:---|:---|
-| **Providers** | 12 — OpenRouter, OpenAI, Anthropic, Gemini, Groq, Mistral, DeepSeek, xAI, AWS Bedrock, Alibaba Cloud, Ollama | Anthropic only |
-| **Max plan support** | Use your Claude Max/Pro subscription directly — no API key needed | Built-in |
-| **Local models** | Ollama with auto-install, guided setup, RAM/GPU suggestions | No |
-| **Cost** | Free + bring your own key, or use existing Claude subscription | $20/mo subscription |
-| **Token saving** | Concise mode, CONTEXT.session persistence, /compact | Manual |
-| **Permission modes** | Standard, Cautious, Unrestricted (with visual theme change) | Bypass only |
-| **Terminal mode** | Ctrl+T to run commands directly | No |
-| **Web search** | Built-in DuckDuckGo | No |
-| **Social media** | Reddit + X posting | No |
-| **Messaging bridges** | WhatsApp, Discord | No |
-| **Session resume** | Local, no cloud | Cloud-based |
-| **Cost tracking** | Per-model live estimates in status bar | No |
-| **Open source** | MIT | Source-available |
+| **Providers** | 12+ (OpenAI, Anthropic, Gemini, Groq, Mistral, DeepSeek, xAI, Bedrock, Alibaba, Ollama, OpenRouter) | Anthropic only |
+| **Use Max/Pro subscription** | ✅ No API key needed | ✅ Built-in |
+| **Run local models** | ✅ Ollama with auto-install & download | ❌ |
+| **Cost** | Free + bring your own key | $20/mo minimum |
+| **Syntax-highlighted diffs** | ✅ Full language-aware highlighting | ✅ |
+| **Terminal mode** | ✅ Ctrl+T for inline shell | ❌ |
+| **Web search** | ✅ Built-in | ❌ |
+| **Social media posting** | ✅ Reddit & X | ❌ |
+| **WhatsApp/Discord bridges** | ✅ | ❌ |
+| **Permission modes** | ✅ Standard, Cautious, Unrestricted | Bypass only |
+| **Real-time cost tracking** | ✅ Live in status bar | ❌ |
+| **Open source** | Apache 2.0 | Source-available |
 
 ---
 
 ## Install
 
-**macOS (Homebrew)**
+**macOS**
 ```bash
 brew install ask-sol/openagent/openagent
 ```
@@ -52,7 +65,7 @@ brew install ask-sol/openagent/openagent
 curl -fsSL https://raw.githubusercontent.com/ask-sol/openagent/main/scripts/install-remote.sh | bash
 ```
 
-**Manual**
+**From source**
 ```bash
 git clone https://github.com/ask-sol/openagent.git && cd openagent && bash scripts/install-user.sh
 ```
@@ -62,68 +75,85 @@ git clone https://github.com/ask-sol/openagent.git && cd openagent && bash scrip
 openagent --upgrade
 ```
 
+Then just run `openagent`. The setup wizard walks you through everything.
+
 ---
 
 ## Quick Start
 
 ```bash
-openagent           # First run → setup wizard
-openagent -u        # Unrestricted (no permission prompts)
-openagent -c        # Cautious (asks before everything)
-openagent -t        # Thinking mode
+openagent              # Interactive setup on first run
+openagent -u           # Unrestricted mode — no permission prompts
+openagent -c           # Cautious mode — asks before every action
+openagent -t           # Thinking mode
+openagent --setup      # Re-run setup wizard
 ```
 
 ---
 
 ## Providers
 
-| Provider | Type | Models |
+| Provider | Type | What you get |
 |:---|:---|:---|
-| **OpenRouter** | Cloud | GPT-4.1, Claude Opus 4, Gemini 2.5 Pro, Llama, Mistral, DeepSeek, Grok + 100 more |
-| **OpenAI** | Cloud | GPT-4.1, GPT-4o, o3, o4-mini |
-| **Anthropic** | Cloud | Claude Opus 4, Sonnet 4, Haiku 3.5 |
-| **Google Gemini** | Cloud | Gemini 2.5 Pro, 2.5 Flash, 2.0 Flash |
-| **AWS Bedrock** | Cloud | Claude, Llama, Mistral, Nova on AWS |
-| **Mistral** | Cloud | Mistral Large, Codestral, Small |
-| **Groq** | Cloud | Llama 3.3 70B, DeepSeek R1, Mixtral |
-| **DeepSeek** | Cloud | DeepSeek V3, R1 |
-| **xAI** | Cloud | Grok 4.20, Grok 4.1 Fast, Grok Code Fast |
-| **Alibaba Cloud** | Cloud | Qwen 3, Qwen Max, QwQ 32B |
-| **Anthropic (Max)** | Subscription | Claude Opus 4.7, Sonnet 4.6, Haiku 4.5 — uses your Max/Pro plan |
-| **Ollama** | Local | Any model — auto-install, auto-download, RAM/GPU guidance |
+| **Anthropic (Max Plan)** | 🔑 Subscription | **Use your existing Claude Max/Pro plan.** No API key. Claude Opus 4.7, Sonnet 4.6, Haiku 4.5 |
+| **OpenRouter** | ☁️ Cloud | **One key, every model.** GPT-5.4, Claude, Gemini, Llama, Mistral, DeepSeek, Grok + 100 more |
+| **OpenAI** | ☁️ Cloud | GPT-5.4, GPT-4.1, o3, o4-mini |
+| **Anthropic** | ☁️ Cloud | Claude Opus 4.7, Sonnet 4.6, Haiku 4.5 (API key) |
+| **Google Gemini** | ☁️ Cloud | Gemini 3.1 Pro, 3 Flash, 2.5 Pro/Flash |
+| **AWS Bedrock** | ☁️ Cloud | Claude, Llama, Mistral, Nova on AWS |
+| **Mistral** | ☁️ Cloud | Mistral Large 3, Small 4, Codestral |
+| **Groq** | ☁️ Cloud | Llama 4 Scout, Llama 3.3 70B, Qwen 3 32B |
+| **DeepSeek** | ☁️ Cloud | DeepSeek V3.2, R1 |
+| **xAI** | ☁️ Cloud | Grok 4.20 (2M context), Grok Code Fast |
+| **Alibaba Cloud** | ☁️ Cloud | Qwen 3 235B, Qwen Max, QwQ 32B |
+| **Ollama** | 💻 Local | Any model. Auto-installs Ollama, auto-downloads models, RAM/GPU guidance |
 
-Switch anytime with `/model` — categorized picker (Cloud vs Local), asks for API key when needed.
+Switch anytime: `/model` opens a categorized picker (Cloud vs Local). API key asked only when needed.
 
 ---
 
 ## Features
 
-**Agentic coding** — Read, write, edit files. Run commands. Search codebases. Multi-step tasks run autonomously.
+### 🤖 Agentic Coding
+Read, write, and edit files. Run shell commands. Search codebases by filename or content. Multi-step tasks execute autonomously with a live task checklist.
 
-**Permission modes** — Standard (asks before writes), Cautious (asks everything), Unrestricted (full auto). Shift+Tab to cycle. Unrestricted turns the UI red as a visual warning.
+### 🔐 Permission Modes
+- **Standard** — asks before file writes and commands
+- **Cautious** — asks before everything
+- **Unrestricted** — full auto (UI turns red as a warning)
 
-**Token efficient** — Concise mode strips filler from responses. CONTEXT.session persists knowledge across sessions. `/compact` compresses conversation to free tokens.
+Cycle with `Shift+Tab`. Set on launch with `-u` or `-c`.
 
-**Terminal mode** — Ctrl+T switches the input to a direct shell. Run commands without the AI. Ctrl+T back.
+### 💰 Token Efficient
+Concise mode strips AI filler without cutting code quality. `CONTEXT.session` persists knowledge across sessions. `/compact` compresses conversation to free tokens. Real-time token counter in the status bar.
 
-**Web search** — Built-in DuckDuckGo. AI searches, reads pages, synthesizes answers.
+### 🖥️ Terminal Mode
+`Ctrl+T` switches the input box to a direct shell. Run `git status`, `npm test`, anything — without the AI. `Ctrl+T` again to switch back.
 
-**Messaging bridges** — `/whatsapp` and `/discord` to receive commands from your phone or server.
+### 🔍 Web Search
+Built-in DuckDuckGo search. The AI automatically searches when it needs current information — no manual prompting needed.
 
-**Social media** — `/setup-reddit` and `/setup-x` for posting from the terminal.
+### 🎨 Syntax-Highlighted Diffs
+File changes display with full syntax highlighting — keywords, strings, comments all colored by language. Line numbers, `+`/`-` markers, context lines.
 
-**Session resume** — All sessions stored locally. `/resume` to pick up where you left off.
+### 📱 Messaging Bridges
+`/whatsapp` and `/discord` let you receive commands from your phone or a Discord server. The AI processes them and responds.
 
-**MCP servers** — Connect any MCP-compatible tool server via `~/.openagent/mcp_servers.json`.
+### 📢 Social Media
+`/setup-reddit` and `/setup-x` for posting directly from the terminal.
 
-**Cost tracking** — Live per-model cost estimate in the status bar.
+### 💾 Session Resume
+All sessions stored locally. `/resume` picks up where you left off. No cloud, no accounts — your data stays on your machine.
+
+### 🔌 MCP Servers
+Connect any MCP-compatible tool server via `~/.openagent/mcp_servers.json`.
 
 ---
 
 ## Commands
 
 <details>
-<summary><strong>70+ built-in commands</strong></summary>
+<summary><strong>70+ built-in commands</strong> (click to expand)</summary>
 
 | Category | Commands |
 |:---|:---|
@@ -151,17 +181,19 @@ Switch anytime with `/model` — categorized picker (Cloud vs Local), asks for A
 
 | Key | Action |
 |:---|:---|
-| **Ctrl+T** | Toggle terminal mode |
-| **Ctrl+B** | Expand/collapse old messages |
-| **Shift+Tab** | Cycle permission mode |
-| **Esc** | Interrupt current task |
-| **Ctrl+C** | Exit |
+| `Ctrl+T` | Toggle terminal mode |
+| `Ctrl+B` | Expand/collapse old messages |
+| `Shift+Tab` | Cycle permission mode |
+| `Esc` | Interrupt current task |
+| `Ctrl+C` | Exit |
 
 ---
 
 ## Contributing
 
-Contributions welcome. Open an issue or PR.
+Contributions are welcome. Check out the [issues](https://github.com/ask-sol/openagent/issues) or open a PR.
+
+If you find OpenAgent useful, please consider giving it a ⭐ — it helps others discover the project.
 
 ## License
 
