@@ -72,8 +72,8 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
   const [queuedMessages, setQueuedMessages] = useState<string[]>([]);
   const [expandedView, setExpandedView] = useState(false);
   const [terminalMode, setTerminalMode] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [taskList, setTaskList] = useState<Array<{ name: string; done: boolean }>>([]);
+  const startTimeRef = useRef(0);
   const { exit } = useApp();
   const { stdout } = useStdout();
   const statusWord = useStatusWord(isProcessing);
@@ -353,9 +353,8 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
       }
 
       setIsProcessing(true);
-      setElapsed(0);
-      if (elapsedRef.current) clearInterval(elapsedRef.current);
-      elapsedRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
+      startTimeRef.current = Date.now();
+      setTaskList([]);
       setStreamingText("");
       streamingTextRef.current = "";
       setActiveTool("");
@@ -366,11 +365,27 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
       const callbacks: QueryCallbacks = {
         onText: (text) => {
           streamingTextRef.current += text;
+
+          const toolMatch = text.match(/⎿\s+(\w+)\(([^)]*)\)/);
+          if (toolMatch) {
+            const taskName = `${toolMatch[1]}(${toolMatch[2].slice(0, 40)})`;
+            setTaskList((prev) => {
+              const updated = prev.map((t) => t.done ? t : { ...t, done: true });
+              return [...updated, { name: taskName, done: false }];
+            });
+          }
+
+          if (text.includes("✓ ")) {
+            setTaskList((prev) => prev.map((t) => ({ ...t, done: true })));
+          }
+
           if (!streamThrottleRef.current) {
             streamThrottleRef.current = setTimeout(() => {
               setStreamingText(streamingTextRef.current);
+              const est = Math.round(streamingTextRef.current.length / 4);
+              setTokenUsage((prev) => ({ ...prev, outputTokens: Math.max(prev.outputTokens, est) }));
               streamThrottleRef.current = null;
-            }, 150);
+            }, 300);
           }
         },
         onToolStart: (name) => {
@@ -482,7 +497,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
       setStreamingText("");
       streamingTextRef.current = "";
       abortRef.current = null;
-      if (elapsedRef.current) { clearInterval(elapsedRef.current); elapsedRef.current = null; }
+      startTimeRef.current = 0;
       setIsProcessing(false);
 
       setQueuedMessages((prev) => {
@@ -737,13 +752,24 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
         </Box>
       )}
 
+      {taskList.length > 0 && isProcessing && (
+        <Box flexDirection="column" paddingLeft={1} marginBottom={0}>
+          {taskList.map((t, i) => (
+            <Text key={i} dimColor>
+              {t.done ? <Text color="green">✓</Text> : <Text color="yellow">○</Text>}
+              {" "}{t.name}
+            </Text>
+          ))}
+        </Box>
+      )}
+
       {!permissionPrompt && (
         <Box borderStyle="single" borderColor={terminalMode ? "magenta" : permMode.mode === "unrestricted" ? "red" : "gray"} paddingLeft={1} width={termSize.columns}>
           <Box flexGrow={1}>
             {isProcessing ? (
               <Box>
                 <Text color="white">{activeTool ? "Agent" : statusWord}  </Text>
-                <Text dimColor>({elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`} • ↓ {formatTokens(tokenUsage.inputTokens + tokenUsage.outputTokens)} tokens)</Text>
+                <Text dimColor>({startTimeRef.current ? `${Math.round((Date.now() - startTimeRef.current) / 1000)}s • ` : ""}↓ {formatTokens(tokenUsage.inputTokens + tokenUsage.outputTokens)} tokens)</Text>
               </Box>
             ) : (
               <Box>

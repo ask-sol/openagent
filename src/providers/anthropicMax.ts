@@ -7,6 +7,7 @@ import type {
   ProviderResponse,
   StreamChunk,
 } from "./types.js";
+import { highlightLine } from "../utils/syntaxHighlight.js";
 
 const config: ProviderConfig = {
   id: "anthropic-max",
@@ -137,18 +138,29 @@ async function* streamRequest(
               const cmd = input.command || input.cmd || "";
               toolLine = `Bash(${cmd.length > 70 ? cmd.slice(0, 67) + "..." : cmd})`;
             } else if (name === "Write") {
-              toolLine = `Create(${fileName})`;
+              toolLine = `Create(${filePath})`;
               const fileContent = input.content || "";
               const lines = fileContent.split("\n");
-              const show = Math.min(lines.length, 12);
-              for (let i = 0; i < show; i++) detail += `${String(i + 1).padStart(6)} + ${lines[i]}\n`;
-              if (lines.length > 12) detail += `       ... +${lines.length - 12} more lines\n`;
+              detail = `   ⎿ Added ${lines.length} lines\n`;
+              const show = Math.min(lines.length, 15);
+              for (let i = 0; i < show; i++) {
+                const hl = highlightLine(lines[i], filePath);
+                detail += `${String(i + 1).padStart(6)} +   ${hl}\n`;
+              }
+              if (lines.length > 15) detail += `       ... +${lines.length - 15} more lines\n`;
             } else if (name === "Edit") {
-              toolLine = `Edit(${fileName})`;
+              toolLine = `Update(${filePath})`;
               const oldL = (input.old_string || input.old_str || "").split("\n");
               const newL = (input.new_string || input.new_str || "").split("\n");
-              for (const l of oldL.slice(0, 6)) detail += `       - ${l}\n`;
-              for (const l of newL.slice(0, 6)) detail += `       + ${l}\n`;
+              detail = `   ⎿ Added ${newL.length} lines, removed ${oldL.length} lines\n`;
+              for (let i = 0; i < Math.min(oldL.length, 8); i++) {
+                const hl = highlightLine(oldL[i], filePath);
+                detail += `${String(i + 1).padStart(6)} -   ${hl}\n`;
+              }
+              for (let i = 0; i < Math.min(newL.length, 8); i++) {
+                const hl = highlightLine(newL[i], filePath);
+                detail += `${String(i + 1).padStart(6)} +   ${hl}\n`;
+              }
             } else if (name === "Read") {
               toolLine = `Read(${fileName})`;
             } else if (name === "WebSearch") {
