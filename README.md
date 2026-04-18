@@ -77,8 +77,18 @@ openagent --upgrade
 
 Then just run `openagent`. The setup wizard walks you through everything.
 
+
 ---
 
+## Built by OpenAgent
+
+One prompt was used to build this website for OpenAgent, made with Opus 4.7 (OpenAgent v0.1.30-20260418)
+
+```website
+https://openagent-build.solz-ask.workers.dev
+```
+
+---
 ## Quick Start
 
 ```bash
