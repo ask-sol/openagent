@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { Box, Text, useInput, useApp, useStdout } from "ink";
+import { Box, Text, useInput, useApp, useStdout, Static } from "ink";
 import TextInput from "ink-text-input";
 import Spinner from "ink-spinner";
 import { useStatusWord } from "../utils/statusWords.js";
@@ -74,6 +74,9 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
   const [terminalMode, setTerminalMode] = useState(false);
   const [taskList, setTaskList] = useState<Array<{ name: string; done: boolean }>>([]);
   const startTimeRef = useRef(0);
+  const inputHistoryRef = useRef<string[]>([]);
+  const historyIdxRef = useRef<number>(-1);
+  const draftInputRef = useRef<string>("");
   const { exit } = useApp();
   const { stdout } = useStdout();
   const statusWord = useStatusWord(isProcessing);
@@ -142,6 +145,31 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
       }
     }
 
+    if ((key.upArrow || key.downArrow) && !isProcessing && !permissionPrompt && !terminalMode) {
+      const hist = inputHistoryRef.current;
+      if (hist.length === 0) return;
+      if (key.upArrow) {
+        if (historyIdxRef.current === -1) {
+          draftInputRef.current = input;
+          historyIdxRef.current = hist.length - 1;
+        } else if (historyIdxRef.current > 0) {
+          historyIdxRef.current -= 1;
+        }
+        setInput(hist[historyIdxRef.current]);
+      } else {
+        if (historyIdxRef.current === -1) return;
+        if (historyIdxRef.current < hist.length - 1) {
+          historyIdxRef.current += 1;
+          setInput(hist[historyIdxRef.current]);
+        } else {
+          historyIdxRef.current = -1;
+          setInput(draftInputRef.current);
+          draftInputRef.current = "";
+        }
+      }
+      return;
+    }
+
     if (key.escape && key.shift && isProcessing && input.trim()) {
       setQueuedMessages((prev) => [...prev, input.trim()]);
       setDisplayMessages((prev) => [
@@ -199,6 +227,13 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
     async (value: string) => {
       const trimmed = value.trim();
       if (!trimmed) return;
+      const hist = inputHistoryRef.current;
+      if (hist[hist.length - 1] !== trimmed) {
+        hist.push(trimmed);
+        if (hist.length > 200) hist.shift();
+      }
+      historyIdxRef.current = -1;
+      draftInputRef.current = "";
       setInput("");
 
       if (terminalMode) {
@@ -521,22 +556,6 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
 
   const renderMessage = (msg: MessageDisplay, idx: number) => {
     const width = Math.max(termSize.columns - 4, 40);
-    const totalMsgs = displayMessages.length;
-    const isOld = !expandedView && totalMsgs > 6 && idx < totalMsgs - 4;
-
-    if (isOld) {
-      if (idx === 0) {
-        const hiddenCount = totalMsgs - 4;
-        return (
-          <Box key={idx} marginBottom={1} marginLeft={2}>
-            <Text dimColor color="gray">
-              ··· {hiddenCount} earlier messages hidden — Ctrl+B to expand ···
-            </Text>
-          </Box>
-        );
-      }
-      return null;
-    }
 
     switch (msg.role) {
       case "user":
@@ -702,9 +721,9 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
         );
       })()}
 
-      <Box flexDirection="column" flexGrow={1}>
-        {displayMessages.map(renderMessage)}
-      </Box>
+      <Static items={displayMessages.map((m, i) => ({ ...m, _key: i }))}>
+        {(msg: MessageDisplay & { _key: number }) => renderMessage(msg, msg._key)}
+      </Static>
 
       {isProcessing && !streamingText && !activeTool && !permissionPrompt && (
         <Box marginBottom={1}>
@@ -806,7 +825,6 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
           )}
           {thinking && <Text color="yellow"> • think</Text>}
           {queuedMessages.length > 0 && <Text color="yellow"> • {queuedMessages.length} queued</Text>}
-          {!expandedView && displayMessages.length > 6 && <Text dimColor> • Ctrl+B expand</Text>}
           <Text dimColor> • </Text>
           <Text color="white">{formatTokens(tokenUsage.inputTokens + tokenUsage.outputTokens)}</Text>
           <Text dimColor> tokens • </Text>
