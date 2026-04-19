@@ -11,6 +11,9 @@
   <a href="https://github.com/ask-sol/openagent/blob/main/LICENSE"><img src="https://img.shields.io/github/license/ask-sol/openagent?style=for-the-badge&color=blue" alt="License" /></a>
 </p>
 
+<!-- stats-start -->
+<!-- stats-end -->
+
 <p align="center">
   <img src="assets/demo.gif" alt="OpenAgent Demo" width="700" />
 </p>
