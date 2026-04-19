@@ -88,32 +88,73 @@ export async function checkForUpdate(): Promise<string | null> {
 }
 
 export async function runUpgrade(): Promise<void> {
-  const { execSync } = await import("node:child_process");
+  const { spawn } = await import("node:child_process");
+  const { LiveProgress, BrewParser } = await import("./progressBar.js");
 
-  console.log("Upgrading OpenAgent...\n");
+  const progress = new LiveProgress("Upgrading OpenAgent");
+  progress.start();
+
+  const runPiped = (cmd: string, timeoutMs: number, onChunk: (chunk: string) => void) =>
+    new Promise<number>((resolve) => {
+      const child = spawn("/bin/bash", ["-c", cmd], { stdio: ["ignore", "pipe", "pipe"] });
+      const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
+      const handleData = (d: Buffer) => onChunk(d.toString());
+      child.stdout?.on("data", handleData);
+      child.stderr?.on("data", handleData);
+      child.on("close", (code) => {
+        clearTimeout(timer);
+        resolve(code ?? 1);
+      });
+      child.on("error", () => {
+        clearTimeout(timer);
+        resolve(1);
+      });
+    });
 
   try {
-    console.log("Refreshing tap...");
-    execSync("cd $(brew --repository)/Library/Taps/ask-sol/homebrew-openagent && git pull 2>&1", {
-      stdio: "inherit",
-      timeout: 30000,
-    });
-    console.log("Installing latest...\n");
-    execSync("brew reinstall openagent 2>&1", {
-      stdio: "inherit",
-      timeout: 120000,
-    });
-    console.log("\nOpenAgent upgraded successfully.");
+    progress.update({ percent: 2, phase: "Refreshing tap", detail: "" });
+    const tapCode = await runPiped(
+      "cd $(brew --repository)/Library/Taps/ask-sol/homebrew-openagent && git pull 2>&1",
+      30000,
+      (chunk) => {
+        const line = chunk.trim().split("\n").pop() || "";
+        if (line) progress.update({ detail: line.slice(0, 80) });
+      },
+    );
+    if (tapCode !== 0) throw new Error("tap refresh failed");
+
+    const parser = new BrewParser();
+    progress.update({ percent: 8, phase: "Fetching", detail: "" });
+    const brewCode = await runPiped(
+      "brew reinstall openagent 2>&1",
+      300000,
+      (chunk) => {
+        const state = parser.feed(chunk);
+        progress.update({
+          percent: Math.max(8, state.percent),
+          phase: state.phase,
+          detail: state.detail,
+        });
+      },
+    );
+    if (brewCode !== 0) throw new Error("brew reinstall failed");
+
+    progress.finish("OpenAgent upgraded successfully.");
   } catch {
-    console.log("\nBrew upgrade failed. Trying manual update...\n");
+    progress.update({ percent: 60, phase: "Falling back to git pull", detail: "" });
     try {
-      execSync("cd ~/.openagent/app && git pull && npm install 2>&1", {
-        stdio: "inherit",
-        timeout: 120000,
-      });
-      console.log("\nOpenAgent updated successfully.");
+      const fallbackCode = await runPiped(
+        "cd ~/.openagent/app && git pull && npm install 2>&1",
+        180000,
+        (chunk) => {
+          const line = chunk.trim().split("\n").pop() || "";
+          if (line) progress.update({ detail: line.slice(0, 80) });
+        },
+      );
+      if (fallbackCode !== 0) throw new Error("fallback failed");
+      progress.finish("OpenAgent updated from source.");
     } catch {
-      console.error("Update failed. Try manually: brew reinstall openagent");
+      progress.fail("Update failed. Try: brew reinstall openagent");
       process.exit(1);
     }
   }

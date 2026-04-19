@@ -6,6 +6,7 @@ import Spinner from "ink-spinner";
 import { totalmem, platform as osPlatform, arch as osArch } from "node:os";
 import { getAllProviders, getProvider } from "../providers/index.js";
 import { loadSettings, saveSettings } from "../config/settings.js";
+import { parsePullPercent } from "../utils/progressBar.js";
 
 type Step =
   | "type"
@@ -136,6 +137,7 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
   const [customHost, setCustomHost] = useState("");
   const [error, setError] = useState("");
   const [pullProgress, setPullProgress] = useState("");
+  const [pullPercent, setPullPercent] = useState<number | null>(null);
   const [runtimeInstalled, setRuntimeInstalled] = useState<boolean | null>(null);
   const [localRuntime, setLocalRuntime] = useState<LocalRuntime>("ollama");
   const loginStartedRef = useRef(false);
@@ -257,6 +259,7 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
 
   function startPull(model: string) {
     setPullProgress("Checking...");
+    setPullPercent(null);
     setStep("pulling");
 
     import("node:child_process").then(({ exec, spawn }) => {
@@ -272,14 +275,16 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
 
     const child = spawn("/bin/bash", ["-c", cmd], { stdio: ["ignore", "pipe", "pipe"] });
 
-    child.stdout?.on("data", (d: Buffer) => {
-      const line = d.toString().trim().split("\n").pop() || "";
-      if (line) setPullProgress(line.slice(0, 120));
-    });
-    child.stderr?.on("data", (d: Buffer) => {
-      const line = d.toString().trim().split("\n").pop() || "";
-      if (line) setPullProgress(line.slice(0, 120));
-    });
+    const onData = (d: Buffer) => {
+      const text = d.toString().replace(/\r/g, "\n");
+      const line = text.trim().split("\n").pop() || "";
+      if (!line) return;
+      setPullProgress(line.slice(0, 120));
+      const pct = parsePullPercent(line);
+      if (pct !== null) setPullPercent(pct);
+    };
+    child.stdout?.on("data", onData);
+    child.stderr?.on("data", onData);
 
     child.on("close", (code: number) => {
       if (code === 0) {
@@ -661,11 +666,34 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
   }
 
   if (step === "pulling") {
+    const barWidth = 40;
+    const pct = pullPercent ?? 0;
+    const filledChars = Math.floor((pct / 100) * barWidth);
+    const partialIdx = Math.floor(((pct / 100) * barWidth - filledChars) * 8);
+    const partials = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"];
+    const filled = "█".repeat(filledChars);
+    const partial = filledChars < barWidth ? partials[partialIdx] : "";
+    const empty = "░".repeat(Math.max(0, barWidth - filledChars - (partial ? 1 : 0)));
+    const barColor = pct >= 95 ? "green" : pct >= 50 ? "cyan" : "yellow";
+
     return (
       <Box flexDirection="column" paddingLeft={2}>
         <Text bold color="cyan"><Spinner type="dots" /> Setting up {rt.label}</Text>
         <Text> </Text>
-        <Text color="yellow">{pullProgress}</Text>
+        {pullPercent !== null ? (
+          <Box>
+            <Text color={barColor}>{filled}{partial}</Text>
+            <Text dimColor>{empty}</Text>
+            <Text bold>  {Math.round(pct)}%</Text>
+          </Box>
+        ) : (
+          <Box>
+            <Text dimColor>{"░".repeat(barWidth)}</Text>
+            <Text dimColor>  —</Text>
+          </Box>
+        )}
+        <Text> </Text>
+        <Text color="gray">{pullProgress}</Text>
       </Box>
     );
   }
