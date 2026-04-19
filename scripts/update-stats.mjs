@@ -99,8 +99,6 @@ const repoPath = repo;
 const block = `<!-- stats-start -->
 <p align="center">
   <img alt="GitHub stars" src="https://img.shields.io/github/stars/${repoPath}?style=for-the-badge&color=yellow&label=stars" />
-  <img alt="GitHub forks" src="https://img.shields.io/github/forks/${repoPath}?style=for-the-badge&color=blue&label=forks" />
-  <img alt="Release downloads" src="https://img.shields.io/github/downloads/${repoPath}/total?style=for-the-badge&color=brightgreen&label=downloads" />
   <img alt="Total clones" src="https://img.shields.io/badge/clones-${encodeURIComponent(fmt(totalClones))}-9b59b6?style=for-the-badge" />
   <img alt="Unique users" src="https://img.shields.io/badge/unique%20users-${encodeURIComponent(fmt(totalUniqueCloners))}-ec4899?style=for-the-badge" />
 </p>
