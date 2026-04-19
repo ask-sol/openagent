@@ -33,8 +33,10 @@ const config: ProviderConfig = {
 };
 
 function normalizeOptions(options: ProviderRequestOptions): ProviderRequestOptions {
+  const model = options.model?.includes("@") ? options.model.split("@")[0] : options.model;
   return {
     ...options,
+    model,
     baseUrl: options.baseUrl || options.apiKey || DEFAULT_BASE,
     apiKey: "lm-studio",
   };
