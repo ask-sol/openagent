@@ -47,9 +47,9 @@
 | **Web search** | ✅ Built-in | ❌ |
 | **Social media posting** | ✅ Reddit & X | ❌ |
 | **WhatsApp/Discord bridges** | ✅ | ❌ |
-| **Permission modes** | ✅ Standard, Cautious, Unrestricted | Bypass only |
-| **Real-time cost tracking** | ✅ Live in status bar | ❌ |
-| **Open source** | Apache 2.0 | Source-available |
+| **Permission modes** | ✅ Standard, Cautious, Unrestricted | ✅ Auto accept edit, Plan mode, Bypass |
+| **Real-time cost tracking** | ✅ Live in status bar | ❌ No API cost tracking|
+| **Open source** | ✅ Apache 2.0 | Source-available |
 
 ---
 
