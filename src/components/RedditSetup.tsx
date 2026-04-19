@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Box, Text } from "ink";
+import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import { loadSettings, saveSettings } from "../config/settings.js";
 
@@ -17,6 +17,18 @@ export function RedditSetup({ onComplete, onCancel }: RedditSetupProps) {
   const [username, setUsername] = useState("");
   const [refreshToken, setRefreshToken] = useState("");
   const [error, setError] = useState("");
+
+  useInput((_, key) => {
+    if (!key.escape) return;
+    setError("");
+    switch (step) {
+      case "info": onCancel(); return;
+      case "client_id": setStep("info"); return;
+      case "client_secret": setStep("client_id"); return;
+      case "username": setStep("client_secret"); return;
+      case "token": setStep("username"); return;
+    }
+  });
 
   const handleInfoDone = () => setStep("client_id");
 

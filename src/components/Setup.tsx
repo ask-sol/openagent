@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Box, Text } from "ink";
+import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import SelectInput from "ink-select-input";
 import Spinner from "ink-spinner";
@@ -26,6 +26,11 @@ export function Setup({ onComplete }: SetupProps) {
     const timer = setTimeout(() => setStep("model"), 1500);
     return () => clearTimeout(timer);
   }, [step]);
+
+  useInput((_, key) => {
+    if (!key.escape) return;
+    if (step === "response_mode") setStep("model");
+  });
 
   const handleModelComplete = (providerId: string, modelId: string) => {
     setStep("response_mode");
@@ -70,7 +75,7 @@ export function Setup({ onComplete }: SetupProps) {
   if (step === "model") {
     return (
       <Box flexDirection="column" padding={1}>
-        <ModelPicker onComplete={handleModelComplete} onCancel={() => {}} />
+        <ModelPicker onComplete={handleModelComplete} onCancel={() => process.exit(0)} />
       </Box>
     );
   }
@@ -89,6 +94,7 @@ export function Setup({ onComplete }: SetupProps) {
         />
         <Text> </Text>
         <Text dimColor>Both write full production code. Only conversation changes.</Text>
+        <Text dimColor>Esc to go back.</Text>
       </Box>
     );
   }

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Box, Text } from "ink";
+import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import { saveDiscordConfig } from "../bridges/discord.js";
 
@@ -15,6 +15,16 @@ export function DiscordSetup({ onComplete, onCancel }: DiscordSetupProps) {
   const [botToken, setBotToken] = useState("");
   const [channelId, setChannelId] = useState("");
   const [allowedUsers, setAllowedUsers] = useState("");
+
+  useInput((_, key) => {
+    if (!key.escape) return;
+    switch (step) {
+      case "info": onCancel(); return;
+      case "token": setStep("info"); return;
+      case "channel": setStep("token"); return;
+      case "users": setStep("channel"); return;
+    }
+  });
 
   const handleInfoDone = () => setStep("token");
 

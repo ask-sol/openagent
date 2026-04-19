@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Box, Text } from "ink";
+import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import { loadSettings, saveSettings } from "../config/settings.js";
 
@@ -17,6 +17,18 @@ export function XSetup({ onComplete, onCancel }: XSetupProps) {
   const [accessToken, setAccessToken] = useState("");
   const [accessSecret, setAccessSecret] = useState("");
   const [error, setError] = useState("");
+
+  useInput((_, key) => {
+    if (!key.escape) return;
+    setError("");
+    switch (step) {
+      case "info": onCancel(); return;
+      case "api_key": setStep("info"); return;
+      case "api_secret": setStep("api_key"); return;
+      case "access_token": setStep("api_secret"); return;
+      case "access_secret": setStep("access_token"); return;
+    }
+  });
 
   const handleInfoDone = () => setStep("api_key");
 

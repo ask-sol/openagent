@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Box, Text } from "ink";
+import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import SelectInput from "ink-select-input";
 import { getAllProviders, searchProviders, getProvider } from "../providers/index.js";
@@ -20,6 +20,23 @@ export function ProviderPicker({ onComplete, onCancel }: ProviderPickerProps) {
   const [error, setError] = useState("");
 
   const settings = loadSettings();
+
+  useInput((_, key) => {
+    if (!key.escape) return;
+    switch (step) {
+      case "provider":
+        onCancel();
+        return;
+      case "key":
+        setStep("provider");
+        setApiKey("");
+        setError("");
+        return;
+      case "model":
+        setStep(selectedProvider?.config.id === "ollama" ? "provider" : "key");
+        return;
+    }
+  });
 
   const handleProviderSelect = (item: { value: string }) => {
     const provider = getProvider(item.value);

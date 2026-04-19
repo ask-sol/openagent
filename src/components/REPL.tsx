@@ -125,6 +125,13 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
     }
 
     if (key.escape) {
+      if (permissionPrompt && permissionResolveRef.current) {
+        const resolve = permissionResolveRef.current;
+        permissionResolveRef.current = null;
+        setPermissionPrompt(null);
+        resolve(false);
+        return;
+      }
       if (isProcessing && abortRef.current) {
         abortRef.current.abort();
         setDisplayMessages((prev) => [

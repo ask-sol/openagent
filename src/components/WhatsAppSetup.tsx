@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Box, Text } from "ink";
+import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import { saveWhatsAppConfig } from "../bridges/whatsapp.js";
 
@@ -16,6 +16,15 @@ export function WhatsAppSetup({ onComplete, onCancel }: WhatsAppSetupProps) {
   const [webhookUrl, setWebhookUrl] = useState("");
 
   const verifyToken = Math.random().toString(36).slice(2, 14);
+
+  useInput((_, key) => {
+    if (!key.escape) return;
+    switch (step) {
+      case "info": onCancel(); return;
+      case "phone": setStep("info"); return;
+      case "webhook": setStep("phone"); return;
+    }
+  });
 
   const handleInfoDone = () => setStep("phone");
 

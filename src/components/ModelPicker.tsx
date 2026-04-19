@@ -1,53 +1,197 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Box, Text } from "ink";
+import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import SelectInput from "ink-select-input";
 import Spinner from "ink-spinner";
-import { totalmem } from "node:os";
+import { totalmem, platform as osPlatform, arch as osArch } from "node:os";
 import { getAllProviders, getProvider } from "../providers/index.js";
 import { loadSettings, saveSettings } from "../config/settings.js";
 
-type Step = "type" | "cloud-provider" | "cloud-model" | "cloud-key" | "cloud-auth-method" | "claude-login" | "claude-proxy-setup" | "local-check" | "local-model" | "local-confirm" | "local-custom" | "pulling" | "installing-ollama";
+type Step =
+  | "type"
+  | "cloud-provider"
+  | "cloud-model"
+  | "cloud-key"
+  | "cloud-auth-method"
+  | "claude-login"
+  | "claude-proxy-setup"
+  | "local-runtime"
+  | "local-check"
+  | "local-model"
+  | "local-confirm"
+  | "local-custom"
+  | "pulling"
+  | "installing-runtime";
+
+type LocalRuntime = "ollama" | "lmstudio" | "mlx";
 
 interface ModelPickerProps {
   onComplete: (provider: string, model: string) => void;
   onCancel: () => void;
 }
 
-const LOCAL_MODELS = [
-  { id: "llama3.2:latest", name: "Llama 3.2 3B", size: "2.0 GB", ram: "8 GB" },
-  { id: "llama3.1:8b", name: "Llama 3.1 8B", size: "4.7 GB", ram: "16 GB" },
-  { id: "qwen2.5-coder:7b", name: "Qwen 2.5 Coder 7B", size: "4.7 GB", ram: "16 GB" },
-  { id: "mistral:latest", name: "Mistral 7B", size: "4.1 GB", ram: "16 GB" },
-  { id: "deepseek-coder-v2:latest", name: "DeepSeek Coder V2 16B", size: "8.9 GB", ram: "24 GB" },
-  { id: "qwen2.5-coder:32b", name: "Qwen 2.5 Coder 32B", size: "19 GB", ram: "32 GB" },
-  { id: "llama3.3:70b", name: "Llama 3.3 70B", size: "40 GB", ram: "64 GB+" },
-];
+interface LocalModelInfo {
+  id: string;
+  name: string;
+  size: string;
+  ram: string;
+}
+
+const LOCAL_MODELS_BY_RUNTIME: Record<LocalRuntime, LocalModelInfo[]> = {
+  ollama: [
+    { id: "llama3.2:latest", name: "Llama 3.2 3B", size: "2.0 GB", ram: "8 GB" },
+    { id: "llama3.1:8b", name: "Llama 3.1 8B", size: "4.7 GB", ram: "16 GB" },
+    { id: "qwen2.5-coder:7b", name: "Qwen 2.5 Coder 7B", size: "4.7 GB", ram: "16 GB" },
+    { id: "mistral:latest", name: "Mistral 7B", size: "4.1 GB", ram: "16 GB" },
+    { id: "deepseek-coder-v2:latest", name: "DeepSeek Coder V2 16B", size: "8.9 GB", ram: "24 GB" },
+    { id: "qwen2.5-coder:32b", name: "Qwen 2.5 Coder 32B", size: "19 GB", ram: "32 GB" },
+    { id: "llama3.3:70b", name: "Llama 3.3 70B", size: "40 GB", ram: "64 GB+" },
+  ],
+  lmstudio: [
+    { id: "lmstudio-community/Llama-3.2-3B-Instruct-GGUF", name: "Llama 3.2 3B", size: "2.0 GB", ram: "8 GB" },
+    { id: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF", name: "Llama 3.1 8B", size: "4.9 GB", ram: "16 GB" },
+    { id: "lmstudio-community/Qwen2.5-Coder-7B-Instruct-GGUF", name: "Qwen 2.5 Coder 7B", size: "4.7 GB", ram: "16 GB" },
+    { id: "lmstudio-community/Mistral-7B-Instruct-v0.3-GGUF", name: "Mistral 7B", size: "4.1 GB", ram: "16 GB" },
+    { id: "lmstudio-community/DeepSeek-Coder-V2-Lite-Instruct-GGUF", name: "DeepSeek Coder V2 Lite", size: "9.5 GB", ram: "24 GB" },
+    { id: "lmstudio-community/Qwen2.5-Coder-32B-Instruct-GGUF", name: "Qwen 2.5 Coder 32B", size: "19 GB", ram: "32 GB" },
+  ],
+  mlx: [
+    { id: "mlx-community/Llama-3.2-3B-Instruct-4bit", name: "Llama 3.2 3B (4-bit)", size: "1.8 GB", ram: "8 GB" },
+    { id: "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit", name: "Llama 3.1 8B (4-bit)", size: "4.5 GB", ram: "16 GB" },
+    { id: "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit", name: "Qwen 2.5 Coder 7B (4-bit)", size: "4.3 GB", ram: "16 GB" },
+    { id: "mlx-community/Mistral-7B-Instruct-v0.3-4bit", name: "Mistral 7B (4-bit)", size: "4.0 GB", ram: "16 GB" },
+    { id: "mlx-community/DeepSeek-Coder-V2-Lite-Instruct-4bit", name: "DeepSeek Coder V2 Lite (4-bit)", size: "9.0 GB", ram: "24 GB" },
+    { id: "mlx-community/Qwen2.5-Coder-32B-Instruct-4bit", name: "Qwen 2.5 Coder 32B (4-bit)", size: "18 GB", ram: "32 GB" },
+  ],
+};
+
+interface RuntimeCmds {
+  label: string;
+  binCheck: string;
+  installDarwin: string;
+  installLinux: string;
+  postInstall?: string;
+  healthUrl: string;
+  startServer: string;
+  pull: (model: string) => string;
+  postPull?: (model: string) => string;
+  providerId: string;
+  apiKey: string;
+  port: number;
+  installUrl: string;
+  requiresAppleSilicon?: boolean;
+}
+
+const RUNTIME_CMDS: Record<LocalRuntime, RuntimeCmds> = {
+  ollama: {
+    label: "Ollama",
+    binCheck: "ollama --version",
+    installDarwin: "brew install ollama 2>&1",
+    installLinux: "curl -fsSL https://ollama.com/install.sh | sh 2>&1",
+    healthUrl: "http://localhost:11434/api/tags",
+    startServer: "ollama serve",
+    pull: (m) => `ollama pull ${m}`,
+    providerId: "ollama",
+    apiKey: "http://localhost:11434",
+    port: 11434,
+    installUrl: "https://ollama.com/download",
+  },
+  lmstudio: {
+    label: "LM Studio",
+    binCheck: "lms --version 2>/dev/null || test -x ~/.lmstudio/bin/lms",
+    installDarwin: "brew install --cask lm-studio 2>&1",
+    installLinux: "echo 'LM Studio on Linux requires manual install from https://lmstudio.ai/download' >&2; exit 1",
+    postInstall: "~/.lmstudio/bin/lms bootstrap 2>&1 || (open -a 'LM Studio' 2>/dev/null && sleep 3)",
+    healthUrl: "http://localhost:1234/v1/models",
+    startServer: "lms server start 2>&1 || ~/.lmstudio/bin/lms server start 2>&1",
+    pull: (m) => `(lms get "${m}" -y 2>&1 || ~/.lmstudio/bin/lms get "${m}" -y 2>&1)`,
+    providerId: "lmstudio",
+    apiKey: "http://localhost:1234/v1",
+    port: 1234,
+    installUrl: "https://lmstudio.ai/download",
+  },
+  mlx: {
+    label: "MLX",
+    binCheck: "python3 -c 'import mlx_lm' 2>/dev/null",
+    installDarwin: "pip3 install --user --upgrade mlx-lm 2>&1",
+    installLinux: "echo 'MLX requires Apple Silicon (macOS).' >&2; exit 1",
+    healthUrl: "http://localhost:8080/v1/models",
+    startServer: "",
+    pull: (m) => `python3 -c "from huggingface_hub import snapshot_download; snapshot_download('${m}')" 2>&1`,
+    postPull: (m) => `nohup python3 -m mlx_lm.server --model ${m} --port 8080 > /tmp/openagent-mlx.log 2>&1 & sleep 4`,
+    providerId: "mlx",
+    apiKey: "http://localhost:8080/v1",
+    port: 8080,
+    installUrl: "https://github.com/ml-explore/mlx-lm",
+    requiresAppleSilicon: true,
+  },
+};
 
 export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
   const [step, setStep] = useState<Step>("type");
   const [selectedProvider, setSelectedProvider] = useState("");
   const [selectedModel, setSelectedModel] = useState("");
-  const [selectedLocalModel, setSelectedLocalModel] = useState<typeof LOCAL_MODELS[0] | null>(null);
+  const [selectedLocalModel, setSelectedLocalModel] = useState<LocalModelInfo | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [customHost, setCustomHost] = useState("");
   const [error, setError] = useState("");
   const [pullProgress, setPullProgress] = useState("");
-  const [ollamaInstalled, setOllamaInstalled] = useState<boolean | null>(null);
+  const [runtimeInstalled, setRuntimeInstalled] = useState<boolean | null>(null);
+  const [localRuntime, setLocalRuntime] = useState<LocalRuntime>("ollama");
   const loginStartedRef = useRef(false);
 
   const settings = loadSettings();
   const sysRAM = Math.round(totalmem() / 1024 / 1024 / 1024);
+  const isAppleSilicon = osPlatform() === "darwin" && osArch() === "arm64";
+  const localModels = LOCAL_MODELS_BY_RUNTIME[localRuntime];
+  const rt = RUNTIME_CMDS[localRuntime];
+
+  useInput((_, key) => {
+    if (!key.escape) return;
+    switch (step) {
+      case "type":
+        onCancel();
+        return;
+      case "cloud-provider":
+        setStep("type");
+        return;
+      case "cloud-model":
+        setStep("cloud-provider");
+        return;
+      case "cloud-key":
+        setStep("cloud-model");
+        setApiKey("");
+        setError("");
+        return;
+      case "cloud-auth-method":
+        setStep("cloud-model");
+        return;
+      case "local-runtime":
+        setStep("type");
+        return;
+      case "local-check":
+      case "installing-runtime":
+        setStep("local-runtime");
+        return;
+      case "local-model":
+        setStep("local-runtime");
+        return;
+      case "local-confirm":
+      case "local-custom":
+        setStep("local-model");
+        return;
+    }
+  });
 
   useEffect(() => {
     if (step === "local-model") {
       import("node:child_process").then(({ exec }) => {
-        exec("ollama --version", { timeout: 3000 }, (err) => {
-          setOllamaInstalled(!err);
+        exec(rt.binCheck, { timeout: 3000, shell: "/bin/bash" } as any, (err) => {
+          setRuntimeInstalled(!err);
         });
       });
     }
-  }, [step]);
+  }, [step, localRuntime]);
 
   useEffect(() => {
     if (step !== "claude-login" || loginStartedRef.current) return;
@@ -101,80 +245,79 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
     });
   }, [step]);
 
+  function ensureServing(exec: any, cb: () => void) {
+    if (!rt.startServer) { cb(); return; }
+    exec(`curl -s ${rt.healthUrl}`, { timeout: 3000 }, (err: any) => {
+      if (!err) { cb(); return; }
+      setPullProgress(`Starting ${rt.label} server...`);
+      exec(`${rt.startServer} &`, { timeout: 3000, shell: "/bin/bash" }, () => {});
+      setTimeout(cb, 2500);
+    });
+  }
+
   function startPull(model: string) {
     setPullProgress("Checking...");
     setStep("pulling");
 
     import("node:child_process").then(({ exec, spawn }) => {
-      ensureOllamaServing(exec, () => {
-        exec("ollama list", { timeout: 5000 }, (err, stdout) => {
-          if (!err && stdout) {
-            const modelBase = model.split(":")[0].toLowerCase();
-            const lines = stdout.split("\n").map(l => l.toLowerCase());
-            const already = lines.some(l => l.includes(modelBase));
-            if (already) {
-              setPullProgress("Model already downloaded.");
-              finish(model);
-              return;
-            }
-          }
-          doPull(model, spawn);
-        });
+      ensureServing(exec, () => {
+        doPull(model, spawn, exec);
       });
     });
   }
 
-  function ensureOllamaServing(exec: any, cb: () => void) {
-    exec("curl -s http://localhost:11434/api/tags", { timeout: 3000 }, (err: any) => {
-      if (!err) { cb(); return; }
-      setPullProgress("Starting Ollama server...");
-      exec("ollama serve &", { timeout: 3000 }, () => {});
-      setTimeout(cb, 2500);
-    });
-  }
+  function doPull(model: string, spawn: any, exec: any) {
+    const cmd = rt.pull(model);
+    setPullProgress(`Downloading ${model}...`);
 
-  function doPull(model: string, spawn: any) {
-    const child = spawn("ollama", ["pull", model], { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn("/bin/bash", ["-c", cmd], { stdio: ["ignore", "pipe", "pipe"] });
 
     child.stdout?.on("data", (d: Buffer) => {
       const line = d.toString().trim().split("\n").pop() || "";
-      setPullProgress(line);
+      if (line) setPullProgress(line.slice(0, 120));
     });
     child.stderr?.on("data", (d: Buffer) => {
       const line = d.toString().trim().split("\n").pop() || "";
-      setPullProgress(line);
+      if (line) setPullProgress(line.slice(0, 120));
     });
 
     child.on("close", (code: number) => {
       if (code === 0) {
         setPullProgress("Download complete.");
-        finish(model);
+        if (rt.postPull) {
+          setPullProgress("Starting model server...");
+          exec(rt.postPull(model), { timeout: 30000, shell: "/bin/bash" }, () => {
+            finish(model);
+          });
+        } else {
+          finish(model);
+        }
       } else {
-        setPullProgress("Download failed. Is Ollama running?");
+        setPullProgress(`Download failed. Is ${rt.label} running?`);
         setTimeout(() => setStep("local-model"), 3000);
       }
     });
 
     child.on("error", () => {
-      setPullProgress("Failed to run ollama.");
+      setPullProgress(`Failed to run ${rt.label}.`);
       setTimeout(() => setStep("local-model"), 3000);
     });
   }
 
   function finish(model: string) {
-    setPullProgress("Starting model server...");
+    setPullProgress("Finalizing...");
     import("node:child_process").then(({ exec }) => {
-      exec("curl -s http://localhost:11434/api/tags", { timeout: 3000 }, (err) => {
-        if (err) {
-          exec("ollama serve &", { timeout: 3000 }, () => {});
+      exec(`curl -s ${rt.healthUrl}`, { timeout: 3000 }, (err) => {
+        if (err && rt.startServer) {
+          exec(`${rt.startServer} &`, { timeout: 3000, shell: "/bin/bash" }, () => {});
         }
         const updated = loadSettings();
-        updated.provider = "ollama";
+        updated.provider = rt.providerId;
         updated.model = model;
-        updated.apiKey = "http://localhost:11434";
+        updated.apiKey = rt.apiKey;
         saveSettings(updated);
         setPullProgress("Ready.");
-        setTimeout(() => onComplete("ollama", model), 1000);
+        setTimeout(() => onComplete(rt.providerId, model), 1000);
       });
     });
   }
@@ -187,10 +330,53 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
         <SelectInput
           items={[
             { label: "Cloud   Use an API key (OpenRouter, OpenAI, Anthropic, Gemini, etc.)", value: "cloud" },
-            { label: "Local   Run a model on this machine with Ollama", value: "local" },
+            { label: "Local   Run a model on this machine (Ollama, LM Studio, or MLX)", value: "local" },
           ]}
-          onSelect={(item) => setStep(item.value === "cloud" ? "cloud-provider" : "local-check")}
+          onSelect={(item) => setStep(item.value === "cloud" ? "cloud-provider" : "local-runtime")}
         />
+        <Text> </Text>
+        <Text dimColor>Esc to cancel.</Text>
+      </Box>
+    );
+  }
+
+  if (step === "local-runtime") {
+    const items: Array<{ label: string; value: LocalRuntime | "back" }> = [
+      {
+        label: `Ollama       Popular, easy setup${isAppleSilicon ? "  ⚠ known M5 Metal bug" : ""}`,
+        value: "ollama",
+      },
+      {
+        label: "LM Studio    GUI + CLI, broad GGUF support, OpenAI-compatible",
+        value: "lmstudio",
+      },
+      {
+        label: `MLX          Apple-native, fastest on Apple Silicon${!isAppleSilicon ? "  (Apple Silicon only)" : "  ← recommended for M-series"}`,
+        value: "mlx",
+      },
+    ];
+    return (
+      <Box flexDirection="column" paddingLeft={2}>
+        <Text bold color="cyan">Which local runtime?</Text>
+        <Text dimColor>OpenAgent will auto-install whichever you pick.</Text>
+        <Text> </Text>
+        <SelectInput
+          items={items as any}
+          onSelect={(item: any) => {
+            const choice = item.value as LocalRuntime;
+            if (choice === "mlx" && !isAppleSilicon) {
+              setError("MLX requires Apple Silicon (macOS on M-series).");
+              return;
+            }
+            setError("");
+            setLocalRuntime(choice);
+            setStep("local-check");
+          }}
+          initialIndex={isAppleSilicon ? 2 : 1}
+        />
+        {error && <Text color="red">{error}</Text>}
+        <Text> </Text>
+        <Text dimColor>Esc to go back.</Text>
       </Box>
     );
   }
@@ -320,14 +506,14 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
   if (step === "local-check") {
     return (
       <Box flexDirection="column" paddingLeft={2}>
-        <Text color="cyan"><Spinner type="dots" /> Checking for Ollama...</Text>
+        <Text color="cyan"><Spinner type="dots" /> Checking for {rt.label}...</Text>
         {(() => {
           import("node:child_process").then(({ exec }) => {
-            exec("ollama --version", { timeout: 3000 }, (err) => {
+            exec(rt.binCheck, { timeout: 3000, shell: "/bin/bash" } as any, (err) => {
               if (err) {
-                setStep("installing-ollama");
+                setStep("installing-runtime");
               } else {
-                setOllamaInstalled(true);
+                setRuntimeInstalled(true);
                 setStep("local-model");
               }
             });
@@ -338,46 +524,53 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
     );
   }
 
-  if (step === "installing-ollama") {
+  if (step === "installing-runtime") {
     return (
       <Box flexDirection="column" paddingLeft={2}>
-        <Text bold color="cyan">Ollama not found</Text>
+        <Text bold color="cyan">{rt.label} not found</Text>
         <Text> </Text>
-        <Text>Ollama is needed to run local models.</Text>
+        <Text>{rt.label} is needed to run local models.</Text>
         <Text> </Text>
         <SelectInput
           items={[
-            { label: "Install Ollama automatically", value: "install" },
-            { label: "I'll install it myself (ollama.com/download)", value: "skip" },
+            { label: `Install ${rt.label} automatically`, value: "install" },
+            { label: `I'll install it myself (${rt.installUrl})`, value: "skip" },
             { label: "Go back", value: "back" },
           ]}
           onSelect={(item) => {
-            if (item.value === "back") { setStep("type"); return; }
+            if (item.value === "back") { setStep("local-runtime"); return; }
             if (item.value === "skip") { setStep("local-model"); return; }
 
-            setPullProgress("Installing Ollama...");
+            setPullProgress(`Installing ${rt.label}...`);
             setStep("pulling");
 
             import("node:child_process").then(({ exec }) => {
               const platform = process.platform;
-              let cmd: string;
+              const cmd = platform === "darwin" ? rt.installDarwin : rt.installLinux;
 
-              if (platform === "darwin") {
-                cmd = "brew install ollama 2>&1 && ollama serve &";
-              } else {
-                cmd = "curl -fsSL https://ollama.com/install.sh | sh 2>&1";
-              }
-
-              exec(cmd, { timeout: 120000 }, (err, stdout, stderr) => {
+              exec(cmd, { timeout: 180000, shell: "/bin/bash" } as any, (err, stdout, stderr) => {
                 if (err) {
                   setPullProgress(`Install failed: ${(stderr || stdout || err.message).slice(0, 200)}`);
-                  setTimeout(() => setStep("local-model"), 4000);
-                } else {
-                  setPullProgress("Ollama installed. Starting...");
-                  exec("ollama serve &", { timeout: 5000 }, () => {
-                    setOllamaInstalled(true);
+                  setTimeout(() => setStep("local-runtime"), 4000);
+                  return;
+                }
+                const afterInstall = () => {
+                  setPullProgress(`${rt.label} installed.`);
+                  if (rt.startServer) {
+                    exec(`${rt.startServer} &`, { timeout: 5000, shell: "/bin/bash" } as any, () => {
+                      setRuntimeInstalled(true);
+                      setTimeout(() => setStep("local-model"), 1500);
+                    });
+                  } else {
+                    setRuntimeInstalled(true);
                     setTimeout(() => setStep("local-model"), 1500);
-                  });
+                  }
+                };
+                if (rt.postInstall) {
+                  setPullProgress(`Setting up ${rt.label} CLI...`);
+                  exec(rt.postInstall, { timeout: 30000, shell: "/bin/bash" } as any, () => afterInstall());
+                } else {
+                  afterInstall();
                 }
               });
             });
@@ -390,13 +583,13 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
   if (step === "local-model") {
     return (
       <Box flexDirection="column" paddingLeft={2}>
-        <Text bold color="cyan">Pick a model to run locally:</Text>
-        <Text dimColor>System RAM: {sysRAM}GB {ollamaInstalled === false && <Text color="red">  Ollama not found — install from ollama.com/download</Text>}</Text>
+        <Text bold color="cyan">Pick a model to run via {rt.label}:</Text>
+        <Text dimColor>System RAM: {sysRAM}GB {runtimeInstalled === false && <Text color="red">  {rt.label} not found — install from {rt.installUrl}</Text>}</Text>
         <Text> </Text>
         <SelectInput
           items={[
-            ...LOCAL_MODELS.map(m => ({
-              label: `${m.name.padEnd(24)} ${m.size.padEnd(8)} needs ${m.ram}${sysRAM < parseInt(m.ram) ? "  ⚠ may be slow" : ""}`,
+            ...localModels.map(m => ({
+              label: `${m.name.padEnd(28)} ${m.size.padEnd(8)} needs ${m.ram}${sysRAM < parseInt(m.ram) ? "  ⚠ may be slow" : ""}`,
               value: m.id,
             })),
             { label: "Enter a custom model name or server URL...", value: "__custom__" },
@@ -406,7 +599,7 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
               setStep("local-custom");
               return;
             }
-            const model = LOCAL_MODELS.find(m => m.id === item.value)!;
+            const model = localModels.find(m => m.id === item.value)!;
             setSelectedLocalModel(model);
             setStep("local-confirm");
           }}
@@ -419,6 +612,7 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
     return (
       <Box flexDirection="column" paddingLeft={2}>
         <Text bold color="cyan">Download {selectedLocalModel.name}?</Text>
+        <Text dimColor>via {rt.label}</Text>
         <Text> </Text>
         <Text>  Size:     <Text color="yellow">{selectedLocalModel.size}</Text></Text>
         <Text>  RAM:      <Text color="yellow">{selectedLocalModel.ram}</Text></Text>
@@ -444,8 +638,8 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
   if (step === "local-custom") {
     return (
       <Box flexDirection="column" paddingLeft={2}>
-        <Text bold color="cyan">Enter a model name or Ollama server URL:</Text>
-        <Text dimColor>Model name (e.g. phi3:latest) or server (e.g. http://192.168.1.5:11434)</Text>
+        <Text bold color="cyan">Enter a {rt.label} model name or server URL:</Text>
+        <Text dimColor>Model name (e.g. {localModels[0]?.id}) or server (e.g. http://host:{rt.port})</Text>
         <Text> </Text>
         <Box><Text color="cyan">{"❯ "}</Text><TextInput value={customHost} onChange={setCustomHost} onSubmit={() => {
           const val = customHost.trim();
@@ -453,15 +647,15 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
 
           if (val.startsWith("http")) {
             const updated = loadSettings();
-            updated.provider = "ollama";
-            updated.model = "llama3.2:latest";
+            updated.provider = rt.providerId;
+            updated.model = localModels[0]?.id || val;
             updated.apiKey = val;
             saveSettings(updated);
-            onComplete("ollama", "llama3.2:latest");
+            onComplete(rt.providerId, localModels[0]?.id || val);
           } else {
             startPull(val);
           }
-        }} placeholder="llama3.2:latest or http://..." /></Box>
+        }} placeholder={`${localModels[0]?.id} or http://...`} /></Box>
       </Box>
     );
   }
@@ -469,7 +663,7 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
   if (step === "pulling") {
     return (
       <Box flexDirection="column" paddingLeft={2}>
-        <Text bold color="cyan"><Spinner type="dots" /> Downloading model</Text>
+        <Text bold color="cyan"><Spinner type="dots" /> Setting up {rt.label}</Text>
         <Text> </Text>
         <Text color="yellow">{pullProgress}</Text>
       </Box>

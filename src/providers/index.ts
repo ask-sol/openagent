@@ -4,6 +4,8 @@ import { geminiProvider } from "./gemini.js";
 import { mistralProvider } from "./mistral.js";
 import { groqProvider } from "./groq.js";
 import { ollamaProvider } from "./ollama.js";
+import { lmstudioProvider } from "./lmstudio.js";
+import { mlxProvider } from "./mlx.js";
 import { deepseekProvider } from "./deepseek.js";
 import { xaiProvider } from "./xai.js";
 import { openrouterProvider } from "./openrouter.js";
@@ -25,6 +27,8 @@ export const providers: Map<string, Provider> = new Map([
   ["xai", xaiProvider],
   ["bedrock", bedrockProvider],
   ["ollama", ollamaProvider],
+  ["lmstudio", lmstudioProvider],
+  ["mlx", mlxProvider],
 ]);
 
 export function getProvider(id: string): Provider | undefined {
