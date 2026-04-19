@@ -26,7 +26,11 @@ jobs:
 
       - name: Refresh stats
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # STATS_TOKEN is an optional PAT with `repo` scope — required for
+          # /traffic/clones and /traffic/views (the default GITHUB_TOKEN is a
+          # GitHub App and is rejected by the traffic endpoints).
+          # Without it, stars/forks/downloads still update, but clone counts stall.
+          GITHUB_TOKEN: ${{ secrets.STATS_TOKEN || secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
         run: node scripts/update-stats.mjs
 

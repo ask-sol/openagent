@@ -9,7 +9,7 @@ if (!token || !repo) {
   process.exit(1);
 }
 
-const api = async (path) => {
+const api = async (path, { optional = false } = {}) => {
   const res = await fetch(`https://api.github.com${path}`, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -19,6 +19,15 @@ const api = async (path) => {
   });
   if (!res.ok) {
     const body = await res.text();
+    if (optional) {
+      console.warn(`⚠ GET ${path} -> ${res.status}. Using cached/empty fallback.`);
+      if (res.status === 403 && body.includes("Resource not accessible by integration")) {
+        console.warn(
+          "  Traffic endpoints require a PAT with 'repo' scope. See STATS_TOKEN in the workflow.",
+        );
+      }
+      return null;
+    }
     throw new Error(`GET ${path} -> ${res.status} ${body}`);
   }
   return res.json();
@@ -26,8 +35,8 @@ const api = async (path) => {
 
 const [meta, clones, views, releases] = await Promise.all([
   api(`/repos/${repo}`),
-  api(`/repos/${repo}/traffic/clones`),
-  api(`/repos/${repo}/traffic/views`),
+  api(`/repos/${repo}/traffic/clones`, { optional: true }),
+  api(`/repos/${repo}/traffic/views`, { optional: true }),
   api(`/repos/${repo}/releases?per_page=100`),
 ]);
 
@@ -47,8 +56,8 @@ const mergeDaily = (bucket, entries) => {
   }
 };
 
-mergeDaily(history.dailyClones, clones.clones || []);
-mergeDaily(history.dailyViews, views.views || []);
+mergeDaily(history.dailyClones, clones?.clones || []);
+mergeDaily(history.dailyViews, views?.views || []);
 
 const sumDaily = (bucket, key) =>
   Object.values(bucket).reduce((s, d) => s + (d[key] || 0), 0);
@@ -70,8 +79,9 @@ const stats = {
   totalClones,
   totalUniqueCloners,
   totalViews,
-  clones14d: clones.count || 0,
-  uniqueCloners14d: clones.uniques || 0,
+  clones14d: clones?.count || 0,
+  uniqueCloners14d: clones?.uniques || 0,
+  trafficAvailable: clones != null,
   lastUpdated: today,
   trackingSince: history.firstRun,
 };
