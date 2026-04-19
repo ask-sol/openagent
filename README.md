@@ -14,8 +14,6 @@
 <!-- stats-start -->
 <p align="center">
   <img alt="GitHub stars" src="https://img.shields.io/github/stars/ask-sol/openagent?style=for-the-badge&color=yellow&label=stars" />
-  <img alt="GitHub forks" src="https://img.shields.io/github/forks/ask-sol/openagent?style=for-the-badge&color=blue&label=forks" />
-  <img alt="Release downloads" src="https://img.shields.io/github/downloads/ask-sol/openagent/total?style=for-the-badge&color=brightgreen&label=downloads" />
   <img alt="Total clones" src="https://img.shields.io/badge/clones-1%2C099-9b59b6?style=for-the-badge" />
   <img alt="Unique users" src="https://img.shields.io/badge/unique%20users-377-ec4899?style=for-the-badge" />
 </p>
