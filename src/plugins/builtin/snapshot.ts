@@ -115,8 +115,8 @@ const snapshotRestoreTool: Tool = {
 
 export const snapshotPlugin: Plugin = {
   id: "snapshot",
-  name: "Snapshot Rollback",
-  description: "Create rollback points before risky edits and restore from them",
+  name: "Snapshot",
+  description: "Save a backup before risky edits, restore in one click if it breaks",
   category: "safety",
   tools: [snapshotCreateTool, snapshotListTool, snapshotRestoreTool],
 };

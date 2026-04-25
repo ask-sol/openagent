@@ -10,6 +10,7 @@ import { redditPostTool } from "./RedditTool/index.js";
 import { xPostTool } from "./XTool/index.js";
 import { todoWriteTool } from "./TodoWriteTool/index.js";
 import { getEnabledPluginTools } from "../plugins/index.js";
+import { getMcpTools, callMcpTool } from "../mcp/client.js";
 import type { Tool } from "./types.js";
 import { toolToProviderFormat } from "./types.js";
 import type { ProviderTool } from "../providers/types.js";
@@ -36,11 +37,22 @@ for (const tool of allTools) {
 }
 
 export function getTool(name: string): Tool | undefined {
+  // MCP tools are dynamic — connections form at runtime so we look them up live.
+  if (name.startsWith("mcp_")) {
+    return {
+      name,
+      description: "",
+      parameters: {},
+      async execute(input) {
+        return callMcpTool(name, input);
+      },
+    };
+  }
   return toolMap.get(name);
 }
 
 export function getToolsForProvider(): ProviderTool[] {
-  return allTools.map(toolToProviderFormat);
+  return [...allTools.map(toolToProviderFormat), ...getMcpTools()];
 }
 
 export type { Tool, ToolResult, ToolContext } from "./types.js";

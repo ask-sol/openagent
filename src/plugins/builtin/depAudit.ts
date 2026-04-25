@@ -36,9 +36,9 @@ const depAuditTool: Tool = {
 };
 
 export const depAuditPlugin: Plugin = {
-  id: "dep-audit",
-  name: "Dependency Audit",
-  description: "Runs npm audit / cargo audit / pip-audit and surfaces vulnerabilities",
+  id: "security",
+  name: "Security Scan",
+  description: "Find vulnerable packages in your dependencies",
   category: "code-quality",
   tools: [depAuditTool],
 };

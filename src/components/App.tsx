@@ -4,6 +4,7 @@ import { Setup } from "./Setup.js";
 import { REPL } from "./REPL.js";
 import { loadSettings, type OpenAgentSettings } from "../config/settings.js";
 import { getTerminalSize, onResize } from "../utils/terminal.js";
+import { connectAllMcpServers, disconnectAllMcpServers } from "../mcp/client.js";
 
 interface AppProps {
   forceSetup?: boolean;
@@ -27,6 +28,19 @@ export function App({ forceSetup, thinkingEnabled }: AppProps) {
       setSettings(current);
     }
   }, [forceSetup]);
+
+  // Connect MCP servers on launch (if any are configured) and clean up on exit.
+  useEffect(() => {
+    let cancelled = false;
+    connectAllMcpServers().catch(() => {
+      // Connection failures are surfaced via /mcp-status; we don't block startup.
+    });
+    return () => {
+      if (cancelled) return;
+      cancelled = true;
+      disconnectAllMcpServers().catch(() => {});
+    };
+  }, []);
 
   const handleSetupComplete = (newSettings: OpenAgentSettings) => {
     setSettings(newSettings);

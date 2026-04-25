@@ -87,9 +87,9 @@ const envCheckTool: Tool = {
 };
 
 export const envCheckPlugin: Plugin = {
-  id: "env-check",
-  name: "Env Var Checker",
-  description: "Cross-references process.env usage against .env to catch missing config",
+  id: "envcheck",
+  name: "Env Checker",
+  description: "Find env vars your code uses but forgot to set in .env",
   category: "config",
   tools: [envCheckTool],
 };

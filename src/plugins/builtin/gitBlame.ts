@@ -46,9 +46,9 @@ const gitBlameTool: Tool = {
 };
 
 export const gitBlamePlugin: Plugin = {
-  id: "git-blame",
-  name: "Git Blame Explainer",
-  description: "Shows blame for line ranges plus the commit messages behind them",
+  id: "blame",
+  name: "Code History",
+  description: "Why does this line look this way? See who changed it and why",
   category: "git",
   tools: [gitBlameTool],
 };

@@ -50,9 +50,9 @@ const stackTraceTool: Tool = {
 };
 
 export const stackTracePlugin: Plugin = {
-  id: "stack-trace",
-  name: "Stack Trace Resolver",
-  description: "Maps stack trace frames to source code with surrounding context",
+  id: "trace",
+  name: "Error Tracer",
+  description: "Paste a stack trace, see the actual broken code",
   category: "debugging",
   tools: [stackTraceTool],
 };

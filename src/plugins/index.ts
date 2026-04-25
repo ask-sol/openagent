@@ -10,6 +10,9 @@ import { depAuditPlugin } from "./builtin/depAudit.js";
 import { gitBlamePlugin } from "./builtin/gitBlame.js";
 import { snapshotPlugin } from "./builtin/snapshot.js";
 import { envCheckPlugin } from "./builtin/envCheck.js";
+import { formatPlugin } from "./builtin/format.js";
+import { commitPlugin } from "./builtin/commit.js";
+import { coveragePlugin } from "./builtin/coverage.js";
 
 export interface Plugin {
   id: string;
@@ -22,13 +25,16 @@ export interface Plugin {
 }
 
 export const BUILTIN_PLUGINS: Plugin[] = [
+  formatPlugin,
   lintRunnerPlugin,
   testRunnerPlugin,
+  coveragePlugin,
   stackTracePlugin,
-  depAuditPlugin,
-  gitBlamePlugin,
   snapshotPlugin,
+  commitPlugin,
+  gitBlamePlugin,
   envCheckPlugin,
+  depAuditPlugin,
 ];
 
 const CONFIG_DIR = join(homedir(), ".openagent");

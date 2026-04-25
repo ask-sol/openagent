@@ -55,9 +55,9 @@ const testTool: Tool = {
 };
 
 export const testRunnerPlugin: Plugin = {
-  id: "test-runner",
-  name: "Test Runner",
-  description: "Detects and runs vitest / jest / pytest / cargo test / go test",
+  id: "tests",
+  name: "Tests",
+  description: "Run your project's tests with one click",
   category: "code-quality",
   tools: [testTool],
 };

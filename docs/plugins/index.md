@@ -53,7 +53,7 @@ import type { Tool } from "../../tools/types.js";
 
 const myTool: Tool = {
   name: "MyTool",
-  description: "What it does — concise, agent-readable",
+  description: "What it does. Concise, agent-readable.",
   parameters: {
     type: "object",
     properties: { /* JSON schema */ },
@@ -74,4 +74,16 @@ export const myPlugin: Plugin = {
 
 Then add it to `BUILTIN_PLUGINS` in `src/plugins/index.ts`.
 
-A proper external plugin loader (npm packages, on-disk plugin folder) is on the roadmap.
+## Submitting a plugin to OpenAgent
+
+Want your plugin in the bundled set? Open a PR.
+
+1. Fork [`ask-sol/openagent`](https://github.com/ask-sol/openagent).
+2. Add `src/plugins/builtin/<your-plugin>.ts` exporting a `Plugin` object.
+3. Register it in `BUILTIN_PLUGINS` (`src/plugins/index.ts`).
+4. Add a row to the table above with name, tools, and what it does.
+5. Open a PR titled `plugin: add <your-plugin>`.
+
+Maintainers review for: tool names that don't clash with existing ones, descriptions that an agent can actually parse, sensible defaults, and that any external commands you call (`npm`, `git`, `cargo`, etc.) actually exist on the user's machine before running. Plugins that hit the network without explicit user input or that read files outside the working directory get bounced.
+
+A proper external plugin loader (npm-published `openagent-plugin-*` packages, auto-discovered) is on the roadmap.

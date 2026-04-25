@@ -54,9 +54,9 @@ const lintRunTool: Tool = {
 };
 
 export const lintRunnerPlugin: Plugin = {
-  id: "lint-runner",
-  name: "Lint Runner",
-  description: "Auto-detects and runs eslint / biome / ruff / clippy / go vet, reports findings",
+  id: "linter",
+  name: "Linter",
+  description: "Find and fix code style issues automatically",
   category: "code-quality",
   tools: [lintRunTool],
 };

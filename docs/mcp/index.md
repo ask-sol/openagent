@@ -50,7 +50,26 @@ On the next OpenAgent launch, it spawns each configured server, fetches its tool
 
 ## Adding a custom server
 
-Edit `~/.openagent/mcp_servers.json` directly to add servers not in the catalog. Format follows the MCP standard:
+You have two options.
+
+### Option 1 — through the UI (recommended)
+
+Run `/mcp` and pick **Custom**. You'll be walked through four steps:
+
+1. **ID** — short name for the server (e.g. `my-postgres`).
+2. **Command** — the executable: `npx`, `uvx`, `node`, `python3`, or an absolute path.
+3. **Arguments** — space-separated args, e.g. `-y @scope/server-name /path/to/data`.
+4. **Environment** — `KEY=VALUE` pairs, comma-separated. Empty = none.
+
+OpenAgent writes the entry to `~/.openagent/mcp_servers.json` and prompts you to restart to load it.
+
+### Option 2 — edit the config file directly
+
+```
+~/.openagent/mcp_servers.json
+```
+
+That's the single source of truth. Format follows the MCP standard:
 
 ```json
 {
@@ -64,7 +83,28 @@ Edit `~/.openagent/mcp_servers.json` directly to add servers not in the catalog.
 }
 ```
 
-Then run `/mcp-status` to confirm it's connected and showing tools.
+After editing, restart OpenAgent. Run `/mcp` → **Installed** to confirm it's loaded (`●` next to the name = live).
+
+## Where everything lives
+
+| File | Purpose |
+|:---|:---|
+| `~/.openagent/mcp_servers.json` | All MCP server configs (catalog installs + your customs) |
+| `/mcp` → Store | Browse and install curated servers |
+| `/mcp` → Installed | See connection status, remove servers |
+| `/mcp` → Custom | Add a server not in the catalog |
+| `/mcp-status` | One-line summary of which servers are live |
+
+## Submitting an MCP to the OpenAgent catalog
+
+Built an MCP server you think should be in the curated catalog? Open a PR.
+
+1. Fork [`ask-sol/openagent`](https://github.com/ask-sol/openagent).
+2. Add an entry to `src/mcp/catalog.ts` with the same shape as the existing ones (id, name, description, category, command, args, optional env vars and notes).
+3. Update this docs page with your server in the table above.
+4. Open a PR titled `mcp: add <your-server-name>`.
+
+Maintainers review for: working command, sensible defaults, clear env var descriptions, and that the underlying server is actually published (npm / pypi / GitHub). Anything weird, unmaintained, or proprietary-paywalled gets bounced.
 
 ## Removing a server
 
