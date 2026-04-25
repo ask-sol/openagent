@@ -195,27 +195,36 @@ All sessions stored locally in `~/.openagent/sessions/`. `/resume` picks up wher
 
 ## Plugins
 
-Run `/plugins` to open the plugin store. Toggle bundled plugins on/off — each one adds new tools the agent can call.
+Run `/plugins` to open the plugin store. Toggle bundled plugins on/off, each one adds new tools the agent can call.
 
-| Plugin | Adds | Purpose |
-|:---|:---|:---|
-| `lint-runner` | `Lint` | Auto-detects and runs eslint, biome, ruff, clippy, or `go vet` |
-| `test-runner` | `Test` | Auto-detects and runs vitest, jest, pytest, `cargo test`, `go test` |
-| `stack-trace` | `ResolveStackTrace` | Maps trace frames to source code with ±3 lines context |
-| `dep-audit` | `DepAudit` | Runs `npm audit` / `pip-audit` / `cargo audit` |
-| `git-blame` | `GitBlame` | Blame for a line range plus the commit messages behind it |
-| `snapshot` | `SnapshotCreate/List/Restore` | Rollback points before risky edits |
-| `env-check` | `EnvCheck` | Cross-references `process.env` against `.env` files |
+| Plugin | Purpose |
+|:---|:---|
+| **Auto Format** | Format code with prettier, biome, ruff, rustfmt, or gofmt |
+| **Linter** | Find and fix code style issues automatically |
+| **Tests** | Run your project's tests with one command |
+| **Test Coverage** | See which files have weak test coverage |
+| **Error Tracer** | Paste a stack trace, see the actual broken code |
+| **Snapshot** | Save a backup before risky edits, restore in one click |
+| **Commit Helper** | Reads your staged diff so the agent writes a clean message |
+| **Code History** | Why does this line look this way? Blame + commit messages |
+| **Env Checker** | Find env vars your code uses but forgot to set in `.env` |
+| **Security Scan** | Find vulnerable packages in your dependencies |
+
+> **Want your plugin in the bundled set?** Open a PR. See [docs/plugins](https://ask-sol.github.io/openagent/plugins/) for the format. Reviewed and merged on a rolling basis.
 
 ---
 
 ## MCP Servers
 
-Run `/mcp` to open the Model Context Protocol server store. Curated catalog with one-click install:
+Run `/mcp` to open the Model Context Protocol manager. Three tabs:
 
-`filesystem`, `git`, `github`, `postgres`, `sqlite`, `puppeteer`, `fetch`, `brave-search`, `slack`, `memory`
+- **Store** — curated catalog with one-click install: `filesystem`, `git`, `github`, `postgres`, `sqlite`, `puppeteer`, `fetch`, `brave-search`, `slack`, `memory`
+- **Installed** — see what's configured, live connection status, remove servers
+- **Custom** — 4-step form (id → command → args → env) for any server not in the catalog
 
-Custom servers via `~/.openagent/mcp_servers.json`. Full MCP spec compatibility.
+All configs live in `~/.openagent/mcp_servers.json`. Edit directly if you prefer.
+
+> **Built an MCP server?** Open a PR to add it to the curated Store catalog. See [docs/mcp](https://ask-sol.github.io/openagent/mcp/) for the format. Reviewed on a rolling basis.
 
 ---
 
@@ -295,9 +304,19 @@ Yes. Run `/mcp` to browse the curated catalog (filesystem, git, github, postgres
 
 ---
 
+## Community
+
+OpenAgent has a community catalog for plugins and MCP servers. If you've built one you want shipped to every OpenAgent user, open a pull request.
+
+**Submit a plugin:** add `src/plugins/builtin/<your-plugin>.ts` exporting a `Plugin` object, register it in `BUILTIN_PLUGINS`. Full guide: [docs/plugins](https://ask-sol.github.io/openagent/plugins/).
+
+**Submit an MCP server:** add an entry to `src/mcp/catalog.ts` with command, args, and any required env vars. Full guide: [docs/mcp](https://ask-sol.github.io/openagent/mcp/).
+
+PRs are reviewed on a rolling basis. Anything that's actively maintained, solves a real developer problem, and works on macOS + Linux is likely to land. Submit a [draft PR](https://github.com/ask-sol/openagent/compare) if you want feedback before the full implementation.
+
 ## Contributing
 
-PRs welcome. Open an [issue](https://github.com/ask-sol/openagent/issues) for bugs, feature requests, or design discussions.
+PRs welcome for bugs, features, plugins, and MCP servers. Open an [issue](https://github.com/ask-sol/openagent/issues) first for anything substantial so we can talk about scope.
 
 If OpenAgent saves you time or money, consider giving it a ⭐ — it helps others discover the project.
 
