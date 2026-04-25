@@ -1,0 +1,47 @@
+---
+layout: null
+permalink: /llms.txt
+---
+# OpenAgent
+
+> The open-source Claude Code alternative — an agentic coding CLI that works with any AI provider. Use your existing Claude Max subscription, OpenRouter, GPT-5, Gemini, Grok, Ollama, LM Studio, MLX, or any of 12+ providers, all from the terminal. Apache 2.0 licensed.
+
+OpenAgent reads files, writes code, runs commands, searches the web, and ships features autonomously. It is a multi-provider, terminal-native AI coding agent that works with both cloud APIs and local model runtimes. Built in TypeScript with React + Ink for the terminal UI.
+
+## Documentation
+
+- [Home](https://ask-sol.github.io/openagent/): What OpenAgent is, install commands, value props
+- [Quickstart](https://ask-sol.github.io/openagent/essentials/quickstart): Install, first run, common shortcuts in under two minutes
+- [Install](https://ask-sol.github.io/openagent/essentials/install): macOS (brew), Linux/WSL (curl), from source, requirements, update flow
+- [Permission modes](https://ask-sol.github.io/openagent/essentials/permissions): Standard, Cautious, Unrestricted — when to use each, per-tool rules
+
+## Providers
+
+- [Providers overview](https://ask-sol.github.io/openagent/providers): All 12+ providers (cloud + local), switching with `/provider` and `/model`
+- [Ollama](https://ask-sol.github.io/openagent/providers/ollama): Local model runtime, auto-install, curated model list, M5 Metal bug workaround
+- [LM Studio](https://ask-sol.github.io/openagent/providers/lmstudio): GUI + CLI runtime, GGUF models, OpenAI-compatible local server
+- [MLX](https://ask-sol.github.io/openagent/providers/mlx): Apple Silicon native runtime, fastest on M-series, Gemma 4 support
+
+## Plugins
+
+- [Plugins](https://ask-sol.github.io/openagent/plugins): Bundled plugins that extend the agent with specialised tools (lint runner, test runner, stack trace resolver, dep audit, git blame, snapshot rollback, env var checker)
+
+## MCP
+
+- [MCP servers](https://ask-sol.github.io/openagent/mcp): Curated Model Context Protocol catalog — filesystem, git, github, postgres, sqlite, puppeteer, fetch, brave-search, slack, memory
+
+## Reference
+
+- [Commands](https://ask-sol.github.io/openagent/reference/commands): All 70+ slash commands (general, conversation, session, config, permissions, tools, files, shell, dev, git, workflow, UI, bridges, social, utility)
+- [Keybindings](https://ask-sol.github.io/openagent/reference/keybindings): Every keyboard shortcut (Ctrl+T terminal mode, Shift+Tab permission cycle, ↑/↓ history, Esc, etc.)
+- [Settings](https://ask-sol.github.io/openagent/reference/settings): `~/.openagent/config.json` schema, all stored files, environment variable overrides
+
+## Source
+
+- [GitHub repository](https://github.com/ask-sol/openagent): Source code, issues, releases (Apache 2.0)
+- [Homebrew formula](https://github.com/ask-sol/homebrew-openagent): macOS install tap
+
+## Optional
+
+- [Quickstart shortcuts](https://ask-sol.github.io/openagent/essentials/quickstart#4-common-shortcuts): Just the keyboard cheatsheet
+- [Provider list at a glance](https://ask-sol.github.io/openagent/providers#cloud-providers): Just the comparison tables
