@@ -5,7 +5,7 @@ baseurl: "/openagent"
 
 theme: just-the-docs
 
-color_scheme: dark
+color_scheme: mintlify
 
 logo: "/images/logo.svg"
 
@@ -35,7 +35,9 @@ nav_external_links:
     hide_icon: false
     opens_in_new_tab: true
 
-footer_content: 'Apache 2.0 — <a href="https://github.com/ask-sol/openagent">github.com/ask-sol/openagent</a>'
+footer_content: ""
+back_to_top: true
+back_to_top_text: "Back to top"
 
 callouts:
   warning:
