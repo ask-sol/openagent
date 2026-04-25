@@ -266,7 +266,11 @@ export function McpStore({ onClose }: McpStoreProps) {
     }
     const items = ids.map((id) => {
       const live = status.find((s) => s.name === id);
-      const tag = live ? `  ● ${live.toolCount} tools loaded` : "  ○ not connected (restart to load)";
+      let tag: string;
+      if (live && live.toolCount > 0) tag = `  ● ${live.toolCount} tools loaded`;
+      else if (live && live.error) tag = `  ✗ ${live.error.slice(0, 60)}`;
+      else if (live) tag = "  ○ connected but 0 tools";
+      else tag = "  ○ not connected (restart to load)";
       return { label: `${id.padEnd(20)}${tag}`, value: id };
     });
     items.push({ label: "Back", value: "__back__" });
