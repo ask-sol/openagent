@@ -32,13 +32,12 @@ jobs:
           bundler-cache: true
           working-directory: docs
 
-      - id: pages
-        uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v5
 
       - name: Build site
         env:
           JEKYLL_ENV: production
-        run: bundle exec jekyll build --baseurl "${{ steps.pages.outputs.base_path }}"
+        run: bundle exec jekyll build --baseurl "/openagent"
 
       - uses: actions/upload-pages-artifact@v3
         with:
