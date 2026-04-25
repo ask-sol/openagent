@@ -145,9 +145,19 @@ async function* streamRequest(
 
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
+  let lastEmittedInput = 0;
+  let lastEmittedOutput = 0;
   let buffer = "";
   let toolCount = 0;
   let agentHeaderShown = false;
+
+  // Pricing per million tokens (USD) — rough Claude rates as of early 2026
+  const RATES: Record<string, { in: number; out: number }> = {
+    opus: { in: 15, out: 75 },
+    sonnet: { in: 3, out: 15 },
+    haiku: { in: 0.8, out: 4 },
+  };
+  const rate = RATES[modelAlias] || RATES.sonnet;
 
   const events: Array<Record<string, any>> = [];
   let resolveNext: (() => void) | null = null;
@@ -209,11 +219,15 @@ async function* streamRequest(
             };
             const oaName = nameMap[claudeName] || claudeName;
 
-            // TodoWrite: route into our local todo store and suppress visible output
+            // TodoWrite: route into our local todo store, suppress visible output
             if (claudeName === "TodoWrite") {
               try {
                 await todoWriteTool.execute(input, { cwd: process.cwd() });
               } catch {}
+              continue;
+            }
+            // Internal harness leaks — silently drop
+            if (claudeName === "ToolSearch" || claudeName === "Monitor") {
               continue;
             }
 
@@ -251,6 +265,22 @@ async function* streamRequest(
         if (usage) {
           totalInputTokens += usage.input_tokens || 0;
           totalOutputTokens += usage.output_tokens || 0;
+          // Emit a delta usage chunk so REPL can update the live counter immediately.
+          const deltaIn = totalInputTokens - lastEmittedInput;
+          const deltaOut = totalOutputTokens - lastEmittedOutput;
+          if (deltaIn > 0 || deltaOut > 0) {
+            const deltaCost = (deltaIn * rate.in + deltaOut * rate.out) / 1_000_000;
+            yield {
+              type: "done",
+              usage: {
+                inputTokens: deltaIn,
+                outputTokens: deltaOut,
+                costUsd: deltaCost,
+              },
+            };
+            lastEmittedInput = totalInputTokens;
+            lastEmittedOutput = totalOutputTokens;
+          }
         }
       }
 
@@ -268,7 +298,6 @@ async function* streamRequest(
         const usage = event.usage || {};
         const cost = event.total_cost_usd || 0;
         const duration = event.duration_ms || 0;
-        const turns = event.num_turns || 1;
         const durationSec = (duration / 1000).toFixed(1);
 
         const toolInfo = toolCount > 0 ? ` • ${toolCount} tool${toolCount > 1 ? "s" : ""}` : "";
@@ -276,13 +305,18 @@ async function* streamRequest(
         agentHeaderShown = false;
         toolCount = 0;
 
+        // Reconcile: previously emitted deltas were rate-based estimates.
+        // The result event has authoritative numbers — emit only the difference.
+        const finalIn = usage.input_tokens || totalInputTokens;
+        const finalOut = usage.output_tokens || totalOutputTokens;
+        const estimatedCost = ((lastEmittedInput * rate.in) + (lastEmittedOutput * rate.out)) / 1_000_000;
         yield {
           type: "done",
           usage: {
-            inputTokens: usage.input_tokens || totalInputTokens,
-            outputTokens: usage.output_tokens || totalOutputTokens,
+            inputTokens: Math.max(0, finalIn - lastEmittedInput),
+            outputTokens: Math.max(0, finalOut - lastEmittedOutput),
             cacheReadTokens: usage.cache_read_input_tokens || 0,
-            costUsd: cost,
+            costUsd: Math.max(0, cost - estimatedCost),
           },
         };
 

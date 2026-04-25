@@ -444,10 +444,8 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
           if (!streamThrottleRef.current) {
             streamThrottleRef.current = setTimeout(() => {
               setStreamingText(streamingTextRef.current);
-              const est = Math.round(streamingTextRef.current.length / 4);
-              setTokenUsage((prev) => ({ ...prev, outputTokens: Math.max(prev.outputTokens, est) }));
               streamThrottleRef.current = null;
-            }, 300);
+            }, 200);
           }
         },
         onToolStart: (name) => {
@@ -467,6 +465,12 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
           let meta = "";
 
           const shortenInResult = (s: string) => filterStreamText(s);
+          // Drop ToolSearch / TodoWrite / Monitor — internal harness leaks
+          if (name === "TodoWrite" || name === "ToolSearch" || name === "Monitor") {
+            return;
+          }
+          // If the "result" is just our placeholder ("Ran X"), it's a no-op echo.
+          const isPlaceholder = /^Ran\s+\w+\s*$/.test(result.trim());
 
           if (name === "FileEdit" || name === "FileWrite") {
             meta = name;
@@ -475,41 +479,66 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
             const filePath = (args?.file_path as string) || "";
             const fileName = filePath ? filePath.split("/").pop() : "";
             meta = `Read(${fileName})`;
-            const lines = shortenInResult(result).split("\n");
-            const total = lines.length;
-            displayContent = lines.slice(0, 6).join("\n");
-            if (total > 6) displayContent += `\n  … ${total - 6} more lines`;
+            if (isPlaceholder) {
+              displayContent = "";
+            } else {
+              const lines = shortenInResult(result).split("\n");
+              const total = lines.length;
+              displayContent = lines.slice(0, 6).join("\n");
+              if (total > 6) displayContent += `\n  … ${total - 6} more lines`;
+            }
           } else if (name === "Bash") {
-            const cmd = (args?.command as string) || "";
+            const cmd = shortPath((args?.command as string) || "");
             const cmdPreview = cmd.length > 60 ? cmd.slice(0, 57) + "…" : cmd;
             meta = `Bash(${cmdPreview})`;
-            const lines = shortenInResult(result).split("\n").filter((l) => l.length > 0);
-            const total = lines.length;
-            displayContent = lines.slice(0, 8).join("\n");
-            if (total > 8) displayContent += `\n  … ${total - 8} more lines`;
+            if (isPlaceholder) {
+              displayContent = "";
+            } else {
+              const lines = shortenInResult(result).split("\n").filter((l) => l.length > 0);
+              const total = lines.length;
+              displayContent = lines.slice(0, 8).join("\n");
+              if (total > 8) displayContent += `\n  … ${total - 8} more lines`;
+            }
           } else if (name === "Glob") {
             meta = `Glob(${(args?.pattern as string) || ""})`;
-            const out = shortenInResult(result);
-            displayContent = out.length > 300 ? out.slice(0, 300) + "…" : out;
+            if (isPlaceholder) {
+              displayContent = "";
+            } else {
+              const out = shortenInResult(result);
+              displayContent = out.length > 300 ? out.slice(0, 300) + "…" : out;
+            }
           } else if (name === "Grep") {
             meta = `Grep(${(args?.pattern as string) || ""})`;
-            const out = shortenInResult(result);
-            displayContent = out.length > 300 ? out.slice(0, 300) + "…" : out;
+            if (isPlaceholder) {
+              displayContent = "";
+            } else {
+              const out = shortenInResult(result);
+              displayContent = out.length > 300 ? out.slice(0, 300) + "…" : out;
+            }
           } else if (name === "WebSearch") {
             meta = `Search(${(args?.query as string) || ""})`;
-            const out = shortenInResult(result);
-            displayContent = out.length > 400 ? out.slice(0, 400) + "…" : out;
+            if (isPlaceholder) {
+              displayContent = "";
+            } else {
+              const out = shortenInResult(result);
+              displayContent = out.length > 400 ? out.slice(0, 400) + "…" : out;
+            }
           } else if (name === "WebFetch") {
             meta = `Fetch(${shortPath((args?.url as string) || "")})`;
-            const out = shortenInResult(result);
-            displayContent = out.length > 400 ? out.slice(0, 400) + "…" : out;
-          } else if (name === "TodoWrite") {
-            // Todo updates render in the live area; suppress the chat echo entirely.
-            return;
+            if (isPlaceholder) {
+              displayContent = "";
+            } else {
+              const out = shortenInResult(result);
+              displayContent = out.length > 400 ? out.slice(0, 400) + "…" : out;
+            }
           } else {
             meta = name;
-            const out = shortenInResult(result);
-            displayContent = out.length > 500 ? out.slice(0, 500) + "…" : out;
+            if (isPlaceholder) {
+              displayContent = "";
+            } else {
+              const out = shortenInResult(result);
+              displayContent = out.length > 500 ? out.slice(0, 500) + "…" : out;
+            }
           }
 
           if (!displayContent) displayContent = result.length > 500 ? result.slice(0, 500) + "..." : result;
@@ -618,7 +647,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
             <Text color={msg.toolError ? "red" : "yellow"}>
               {"  ⎿ "}{msg.toolMeta || msg.toolName}{msg.toolError ? " FAILED" : ""}
             </Text>
-            {msg.content && (
+            {msg.content && msg.content.trim() !== "" && (
               <Box marginLeft={4} flexDirection="column">
                 <Text dimColor>{wrapText(msg.content, width - 6)}</Text>
               </Box>
@@ -872,7 +901,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
       )}
 
       {!permissionPrompt && (
-        <Box borderStyle="single" borderColor={terminalMode ? "magenta" : interruptPrompt ? "yellow" : permMode.mode === "unrestricted" ? "red" : "gray"} paddingLeft={1} width={termSize.columns}>
+        <Box borderStyle="single" borderColor={terminalMode ? "magenta" : interruptPrompt ? "yellow" : "gray"} paddingLeft={1} width={termSize.columns}>
           <Box flexGrow={1}>
             <Text color={terminalMode ? "magenta" : interruptPrompt ? "yellow" : "cyan"} bold>{terminalMode ? "$" : "❯"} </Text>
             <TextInput
@@ -901,7 +930,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
         </Box>
       )}
 
-      <Box paddingLeft={1} justifyContent="space-between" width={termSize.columns - 2}>
+      <Box paddingLeft={1} marginTop={1} justifyContent="space-between" width={termSize.columns - 2}>
         <Box>
           {terminalMode ? (
             <Text color="magenta" bold>Terminal Mode</Text>
