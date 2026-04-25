@@ -1,20 +1,41 @@
-// Mintlify-style dark color scheme — extends Just the Docs' dark scheme
+// Mintlify-style dark color scheme — self-contained (no @import of other schemes)
 
-@import "./dark";
+// Body / background
+$body-background-color:           #0a0a0b;
+$sidebar-color:                   #050507;
+$body-text-color:                 #d4d4d8;
+$body-heading-color:              #ffffff;
+$body-background-color:           #0a0a0b;
 
-$body-background-color: #0a0a0b;
-$sidebar-color: #050507;
-$body-text-color: #d4d4d8;
-$body-heading-color: #ffffff;
-$body-text-color: #d4d4d8;
-$link-color: #60a5fa;
-$btn-primary-color: #3b82f6;
-$base-button-color: #18181b;
-$nav-child-link-color: #a1a1aa;
-$search-background-color: #18181b;
+// Links / accents
+$link-color:                      #60a5fa;
+$btn-primary-color:               #3b82f6;
+$base-button-color:               #18181b;
+
+// Borders
+$border-color:                    #1f1f23;
+
+// Navigation
+$nav-child-link-color:            #a1a1aa;
+
+// Search
+$search-background-color:         #18181b;
 $search-result-hover-background-color: #1f1f23;
-$table-background-color: #0d0d10;
-$feedback-color: #18181b;
-$code-background-color: #18181b;
-$border-color: #1f1f23;
-$body-background-color: #0a0a0b;
+
+// Tables / surfaces
+$table-background-color:          #0d0d10;
+$feedback-color:                  #18181b;
+
+// Code
+$code-background-color:           #18181b;
+
+// Syntax highlighting (Rouge "base16.dark")
+$base-bg:                         $code-background-color;
+$base-fg:                         #f4f4f5;
+$base-border-color:               $border-color;
+
+// Body & heading defaults
+$body-font-family:                -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif;
+$mono-font-family:                "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+$root-font-size:                  16px;
+$content-width:                   800px;
