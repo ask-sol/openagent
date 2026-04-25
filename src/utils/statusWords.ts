@@ -34,7 +34,7 @@ const STATUS_WORDS = [
   "Making magic",
 ];
 
-export function useStatusWord(active: boolean, intervalMs = 2200): string {
+export function useStatusWord(active: boolean, intervalMs = 4000): string {
   const [word, setWord] = useState(() => STATUS_WORDS[Math.floor(Math.random() * STATUS_WORDS.length)]);
   const usedRef = useRef<Set<number>>(new Set());
 

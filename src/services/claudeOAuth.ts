@@ -7,6 +7,7 @@ import { getConfigDir } from "../config/settings.js";
 const CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
 const AUTH_URL = "https://claude.com/cai/oauth/authorize";
 const TOKEN_URL = "https://platform.claude.com/v1/oauth/token";
+const CREATE_KEY_URL = "https://api.anthropic.com/api/oauth/claude_cli/create_api_key";
 const SCOPES = "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload";
 
 function callbackPage(title: string, message: string, success: boolean): string {

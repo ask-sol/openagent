@@ -2,6 +2,10 @@ import { writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { resolve, isAbsolute, dirname } from "node:path";
 import type { Tool, ToolResult, ToolContext } from "../types.js";
 
+function pad(n: number, width = 5): string {
+  return String(n).padStart(width, " ");
+}
+
 export const fileWriteTool: Tool = {
   name: "FileWrite",
   description:
@@ -41,12 +45,21 @@ export const fileWriteTool: Tool = {
       writeFileSync(filePath, content);
 
       const allLines = content.split("\n");
-      const lines = allLines.length;
-      const preview = allLines.slice(0, 12).map((l) => `+ ${l}`).join("\n");
-      const truncNote = lines > 12 ? `\n  ... +${lines - 12} more lines` : "";
-      return {
-        output: `${existed ? "Overwrote" : "Created"} ${filePath} (${lines} lines, +${lines} added)\n${preview}${truncNote}`,
-      };
+      const total = allLines.length;
+      const previewMax = 18;
+
+      const out: string[] = [];
+      out.push(`${existed ? "Overwrote" : "Created"} ${filePath}`);
+      out.push(`Added ${total} line${total === 1 ? "" : "s"}`);
+      out.push("---");
+      for (let i = 0; i < Math.min(total, previewMax); i++) {
+        out.push(`${pad(i + 1)} +  ${allLines[i]}`);
+      }
+      if (total > previewMax) {
+        out.push(`      …  +${total - previewMax} more line${total - previewMax === 1 ? "" : "s"}`);
+      }
+
+      return { output: out.join("\n") };
     } catch (err: any) {
       return { output: "", error: `Failed to write file: ${err.message}` };
     }

@@ -65,7 +65,7 @@ export async function connectMcpServer(
 
   const client = new Client(
     { name: "openagent", version: "0.1.0" },
-    { capabilities: { tools: {} } }
+    { capabilities: {} }
   );
 
   await client.connect(transport);

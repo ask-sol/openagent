@@ -30,6 +30,10 @@ import { XSetup } from "./XSetup.js";
 import { WhatsAppSetup } from "./WhatsAppSetup.js";
 import { DiscordSetup } from "./DiscordSetup.js";
 import { detectProject, formatProjectInfo } from "../utils/projectDetect.js";
+import { DiffView } from "./DiffView.js";
+import { McpStore } from "./McpStore.js";
+import { PluginStore } from "./PluginStore.js";
+import { subscribeTodos, clearTodos, type TodoItem } from "../tools/TodoWriteTool/index.js";
 import { estimateCost } from "../utils/costTracker.js";
 import { renderMarkdown } from "../utils/renderMarkdown.js";
 import { getContextMeter } from "../utils/contextMeter.js";
@@ -60,7 +64,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
   const [error, setError] = useState("");
   const [thinking, setThinking] = useState(initialThinking);
   const [settings, setSettings] = useState(initialSettings);
-  const [pickerView, setPickerView] = useState<"none" | "provider" | "model" | "reddit" | "x" | "whatsapp" | "discord">("none");
+  const [pickerView, setPickerView] = useState<"none" | "provider" | "model" | "reddit" | "x" | "whatsapp" | "discord" | "mcp" | "plugins">("none");
   const [permissionPrompt, setPermissionPrompt] = useState<{ name: string; desc: string } | null>(null);
   const permissionResolveRef = useRef<((allowed: boolean) => void) | null>(null);
 
@@ -72,7 +76,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
   const [queuedMessages, setQueuedMessages] = useState<string[]>([]);
   const [expandedView, setExpandedView] = useState(false);
   const [terminalMode, setTerminalMode] = useState(false);
-  const [taskList, setTaskList] = useState<Array<{ name: string; done: boolean }>>([]);
+  const [todoItems, setTodoItems] = useState<TodoItem[]>([]);
   const startTimeRef = useRef(0);
   const inputHistoryRef = useRef<string[]>([]);
   const historyIdxRef = useRef<number>(-1);
@@ -88,6 +92,10 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
 
   useEffect(() => {
     return onResize((size) => setTermSize(size));
+  }, []);
+
+  useEffect(() => {
+    return subscribeTodos((s) => setTodoItems([...s.items]));
   }, []);
 
   useInput((ch, key) => {
@@ -292,6 +300,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
           setStreamingText("");
           setTokenUsage({ inputTokens: 0, outputTokens: 0 });
           messageCountRef.current = 0;
+          clearTodos();
           return;
         }
 
@@ -340,6 +349,16 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
 
         if ((result.action as string) === "setup-discord") {
           setPickerView("discord");
+          return;
+        }
+
+        if (result.action === "pick-mcp") {
+          setPickerView("mcp");
+          return;
+        }
+
+        if (result.action === "pick-plugins") {
+          setPickerView("plugins");
           return;
         }
 
@@ -396,7 +415,6 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
 
       setIsProcessing(true);
       startTimeRef.current = Date.now();
-      setTaskList([]);
       setStreamingText("");
       streamingTextRef.current = "";
       setActiveTool("");
@@ -407,19 +425,6 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
       const callbacks: QueryCallbacks = {
         onText: (text) => {
           streamingTextRef.current += text;
-
-          const toolMatch = text.match(/⎿\s+(\w+)\(([^)]*)\)/);
-          if (toolMatch) {
-            const taskName = `${toolMatch[1]}(${toolMatch[2].slice(0, 40)})`;
-            setTaskList((prev) => {
-              const updated = prev.map((t) => t.done ? t : { ...t, done: true });
-              return [...updated, { name: taskName, done: false }];
-            });
-          }
-
-          if (text.includes("✓ ")) {
-            setTaskList((prev) => prev.map((t) => ({ ...t, done: true })));
-          }
 
           if (!streamThrottleRef.current) {
             streamThrottleRef.current = setTimeout(() => {
@@ -446,23 +451,9 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
           let displayContent = "";
           let meta = "";
 
-          if (name === "FileEdit") {
-            const parsed = result.match(/Edited (.+?) —/);
-            const fileName = parsed ? parsed[1].split("/").pop() : "";
-            meta = `Update(${fileName})`;
-            const lines = result.split("\n");
-            displayContent = lines.map((l: string) => {
-              if (l.startsWith("+ ")) return `\x1b[32m${l}\x1b[0m`;
-              if (l.startsWith("- ")) return `\x1b[31m${l}\x1b[0m`;
-              return l;
-            }).slice(0, 20).join("\n");
-          } else if (name === "FileWrite") {
-            const parsed = result.match(/(Created|Overwrote) (.+?) \((\d+) lines\)/);
-            const fileName = parsed ? parsed[2].split("/").pop() : "";
-            meta = `${parsed?.[1] === "Created" ? "\x1b[32mCreate\x1b[0m" : "Write"}(${fileName})`;
-            const lines = result.split("\n");
-            displayContent = lines.slice(0, 12).join("\n");
-            if (lines.length > 12) displayContent += `\n  ... ${lines.length - 12} more`;
+          if (name === "FileEdit" || name === "FileWrite") {
+            meta = name;
+            displayContent = result;
           } else if (name === "FileRead") {
             const parsed = result.match(/File: (.+?) \((\d+) lines\)/);
             meta = `Read(${parsed ? parsed[1].split("/").pop() : ""})`;
@@ -579,6 +570,18 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
         );
 
       case "tool":
+        if (msg.toolName === "FileEdit" || msg.toolName === "FileWrite") {
+          return (
+            <Box key={idx} flexDirection="column" marginBottom={1}>
+              <DiffView
+                toolName={msg.toolName as "FileEdit" | "FileWrite"}
+                rawOutput={msg.content}
+                isError={!!msg.toolError}
+                errorMessage={msg.toolError ? msg.content : undefined}
+              />
+            </Box>
+          );
+        }
         return (
           <Box key={idx} flexDirection="column" marginBottom={1}>
             <Text color={msg.toolError ? "red" : "yellow"}>
@@ -697,6 +700,22 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
     );
   }
 
+  if (pickerView === "mcp") {
+    return (
+      <Box flexDirection="column" width={termSize.columns}>
+        <McpStore onClose={handlePickerCancel} />
+      </Box>
+    );
+  }
+
+  if (pickerView === "plugins") {
+    return (
+      <Box flexDirection="column" width={termSize.columns}>
+        <PluginStore onClose={handlePickerCancel} />
+      </Box>
+    );
+  }
+
   return (
     <Box flexDirection="column" width={termSize.columns}>
       {displayMessages.length === 0 && (() => {
@@ -778,14 +797,32 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
         </Box>
       )}
 
-      {taskList.length > 0 && isProcessing && (
-        <Box flexDirection="column" paddingLeft={1} marginBottom={0}>
-          {taskList.map((t, i) => (
-            <Text key={i} dimColor>
-              {t.done ? <Text color="green">✓</Text> : <Text color="yellow">○</Text>}
-              {" "}{t.name}
-            </Text>
-          ))}
+      {todoItems.length > 0 && (
+        <Box flexDirection="column" paddingLeft={1} marginBottom={1}>
+          {todoItems.map((t, i) => {
+            if (t.status === "completed") {
+              return (
+                <Box key={i}>
+                  <Text color="green">  ✓ </Text>
+                  <Text dimColor>{t.content}</Text>
+                </Box>
+              );
+            }
+            if (t.status === "in_progress") {
+              return (
+                <Box key={i}>
+                  <Text color="red" bold>  ■ </Text>
+                  <Text bold>{t.activeForm || t.content}</Text>
+                </Box>
+              );
+            }
+            return (
+              <Box key={i}>
+                <Text dimColor>  ☐ </Text>
+                <Text dimColor>{t.content}</Text>
+              </Box>
+            );
+          })}
         </Box>
       )}
 
@@ -795,7 +832,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
             {isProcessing ? (
               <Box>
                 <Text color="white">{activeTool ? "Agent" : statusWord}  </Text>
-                <Text dimColor>({startTimeRef.current ? `${Math.round((Date.now() - startTimeRef.current) / 1000)}s • ` : ""}↓ {formatTokens(tokenUsage.inputTokens + tokenUsage.outputTokens)} tokens)</Text>
+                <Text dimColor>(↓ {formatTokens(tokenUsage.inputTokens + tokenUsage.outputTokens)} tokens)</Text>
               </Box>
             ) : (
               <Box>

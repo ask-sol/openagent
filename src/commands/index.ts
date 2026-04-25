@@ -24,7 +24,7 @@ import type { TokenUsage } from "../providers/types.js";
 
 export interface CommandResult {
   output: string;
-  action?: "clear" | "exit" | "resume" | "setup" | "switch-view" | "pick-provider" | "pick-model" | "setup-reddit" | "setup-x" | "compact";
+  action?: "clear" | "exit" | "resume" | "setup" | "switch-view" | "pick-provider" | "pick-model" | "setup-reddit" | "setup-x" | "compact" | "pick-mcp" | "pick-plugins";
   data?: any;
 }
 
@@ -380,16 +380,24 @@ cmd("tools", ["t"], "Tools", "List all available tools", () => {
   return { output };
 });
 
-cmd("mcp", ["mcp-status"], "Tools", "Show MCP server connections", () => {
+cmd("mcp", ["mcp-store"], "Tools", "Browse and install MCP servers", () => {
+  return { output: "", action: "pick-mcp" };
+});
+
+cmd("mcp-status", ["mcps"], "Tools", "Show currently-connected MCP servers", () => {
   const status = getMcpConnectionStatus();
   if (status.length === 0) {
-    return { output: "No MCP servers connected.\nConfigure in ~/.openagent/mcp_servers.json" };
+    return { output: "No MCP servers connected. Run /mcp to browse and install." };
   }
   let output = "MCP Servers:\n";
   for (const s of status) {
     output += `  ${s.name} — ${s.toolCount} tools\n`;
   }
   return { output };
+});
+
+cmd("plugins", ["plugin"], "Tools", "Browse and install agent plugins", () => {
+  return { output: "", action: "pick-plugins" };
 });
 
 cmd("files", ["ls", "tree"], "Files", "List files in current directory", (args, ctx) => {

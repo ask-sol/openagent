@@ -8,11 +8,13 @@ import { webSearchTool } from "./WebSearchTool/index.js";
 import { webFetchTool } from "./WebFetchTool/index.js";
 import { redditPostTool } from "./RedditTool/index.js";
 import { xPostTool } from "./XTool/index.js";
+import { todoWriteTool } from "./TodoWriteTool/index.js";
+import { getEnabledPluginTools } from "../plugins/index.js";
 import type { Tool } from "./types.js";
 import { toolToProviderFormat } from "./types.js";
 import type { ProviderTool } from "../providers/types.js";
 
-export const allTools: Tool[] = [
+const baseTools: Tool[] = [
   bashTool,
   fileReadTool,
   fileEditTool,
@@ -21,9 +23,12 @@ export const allTools: Tool[] = [
   grepTool,
   webSearchTool,
   webFetchTool,
+  todoWriteTool,
   redditPostTool,
   xPostTool,
 ];
+
+export const allTools: Tool[] = [...baseTools, ...getEnabledPluginTools()];
 
 const toolMap = new Map<string, Tool>();
 for (const tool of allTools) {
