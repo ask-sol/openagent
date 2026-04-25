@@ -34,6 +34,7 @@ import { DiffView } from "./DiffView.js";
 import { McpStore } from "./McpStore.js";
 import { PluginStore } from "./PluginStore.js";
 import { subscribeTodos, clearTodos, type TodoItem } from "../tools/TodoWriteTool/index.js";
+import { filterStreamText, shortPath } from "../utils/streamFilter.js";
 import { estimateCost } from "../utils/costTracker.js";
 import { renderMarkdown } from "../utils/renderMarkdown.js";
 import { getContextMeter } from "../utils/contextMeter.js";
@@ -77,6 +78,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
   const [expandedView, setExpandedView] = useState(false);
   const [terminalMode, setTerminalMode] = useState(false);
   const [todoItems, setTodoItems] = useState<TodoItem[]>([]);
+  const [interruptPrompt, setInterruptPrompt] = useState(false);
   const startTimeRef = useRef(0);
   const inputHistoryRef = useRef<string[]>([]);
   const historyIdxRef = useRef<number>(-1);
@@ -144,11 +146,22 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
         return;
       }
       if (isProcessing && abortRef.current) {
+        // First Esc instantly aborts and shows "what should it do instead?" prompt.
         abortRef.current.abort();
-        setDisplayMessages((prev) => [
-          ...prev,
-          { role: "system", content: "Interrupted." },
-        ]);
+        abortRef.current = null;
+        setIsProcessing(false);
+        setActiveTool("");
+        setStreamingText("");
+        streamingTextRef.current = "";
+        if (streamThrottleRef.current) {
+          clearTimeout(streamThrottleRef.current);
+          streamThrottleRef.current = null;
+        }
+        setInterruptPrompt(true);
+        return;
+      }
+      if (interruptPrompt) {
+        setInterruptPrompt(false);
         return;
       }
     }
@@ -424,7 +437,9 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
 
       const callbacks: QueryCallbacks = {
         onText: (text) => {
-          streamingTextRef.current += text;
+          const cleaned = filterStreamText(text);
+          if (!cleaned) return;
+          streamingTextRef.current += cleaned;
 
           if (!streamThrottleRef.current) {
             streamThrottleRef.current = setTimeout(() => {
@@ -451,34 +466,50 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
           let displayContent = "";
           let meta = "";
 
+          const shortenInResult = (s: string) => filterStreamText(s);
+
           if (name === "FileEdit" || name === "FileWrite") {
             meta = name;
-            displayContent = result;
+            displayContent = shortenInResult(result);
           } else if (name === "FileRead") {
-            const parsed = result.match(/File: (.+?) \((\d+) lines\)/);
-            meta = `Read(${parsed ? parsed[1].split("/").pop() : ""})`;
-            const lines = result.split("\n");
-            displayContent = lines.slice(0, 8).join("\n");
-            if (lines.length > 8) displayContent += `\n  ... ${lines.length - 8} more lines`;
+            const filePath = (args?.file_path as string) || "";
+            const fileName = filePath ? filePath.split("/").pop() : "";
+            meta = `Read(${fileName})`;
+            const lines = shortenInResult(result).split("\n");
+            const total = lines.length;
+            displayContent = lines.slice(0, 6).join("\n");
+            if (total > 6) displayContent += `\n  … ${total - 6} more lines`;
           } else if (name === "Bash") {
             const cmd = (args?.command as string) || "";
-            const cmdPreview = cmd.length > 60 ? cmd.slice(0, 57) + "..." : cmd;
+            const cmdPreview = cmd.length > 60 ? cmd.slice(0, 57) + "…" : cmd;
             meta = `Bash(${cmdPreview})`;
-            const lines = result.split("\n");
-            displayContent = lines.slice(0, 12).join("\n");
-            if (lines.length > 12) displayContent += `\n  ... ${lines.length - 12} more lines`;
+            const lines = shortenInResult(result).split("\n").filter((l) => l.length > 0);
+            const total = lines.length;
+            displayContent = lines.slice(0, 8).join("\n");
+            if (total > 8) displayContent += `\n  … ${total - 8} more lines`;
           } else if (name === "Glob") {
-            meta = "Glob";
-            displayContent = result.length > 300 ? result.slice(0, 300) + "..." : result;
+            meta = `Glob(${(args?.pattern as string) || ""})`;
+            const out = shortenInResult(result);
+            displayContent = out.length > 300 ? out.slice(0, 300) + "…" : out;
           } else if (name === "Grep") {
-            meta = "Grep";
-            displayContent = result.length > 300 ? result.slice(0, 300) + "..." : result;
+            meta = `Grep(${(args?.pattern as string) || ""})`;
+            const out = shortenInResult(result);
+            displayContent = out.length > 300 ? out.slice(0, 300) + "…" : out;
           } else if (name === "WebSearch") {
-            meta = "\x1b[36mWebSearch\x1b[0m";
-            displayContent = result.length > 400 ? result.slice(0, 400) + "..." : result;
+            meta = `Search(${(args?.query as string) || ""})`;
+            const out = shortenInResult(result);
+            displayContent = out.length > 400 ? out.slice(0, 400) + "…" : out;
+          } else if (name === "WebFetch") {
+            meta = `Fetch(${shortPath((args?.url as string) || "")})`;
+            const out = shortenInResult(result);
+            displayContent = out.length > 400 ? out.slice(0, 400) + "…" : out;
+          } else if (name === "TodoWrite") {
+            // Todo updates render in the live area; suppress the chat echo entirely.
+            return;
           } else {
             meta = name;
-            displayContent = result.length > 500 ? result.slice(0, 500) + "..." : result;
+            const out = shortenInResult(result);
+            displayContent = out.length > 500 ? out.slice(0, 500) + "…" : out;
           }
 
           if (!displayContent) displayContent = result.length > 500 ? result.slice(0, 500) + "..." : result;
@@ -826,25 +857,46 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
         </Box>
       )}
 
+      {isProcessing && !permissionPrompt && (
+        <Box marginLeft={1} marginBottom={0}>
+          <Text color="white" bold>{activeTool ? "Agent" : statusWord}</Text>
+          <Text dimColor>  (esc to interrupt • ↓ {formatTokens(tokenUsage.inputTokens + tokenUsage.outputTokens)} tokens)</Text>
+        </Box>
+      )}
+
+      {interruptPrompt && !permissionPrompt && (
+        <Box marginLeft={1} marginBottom={0} flexDirection="column">
+          <Text color="yellow" bold>⏸ Interrupted</Text>
+          <Text dimColor>What should {modelDisplay} do instead?</Text>
+        </Box>
+      )}
+
       {!permissionPrompt && (
-        <Box borderStyle="single" borderColor={terminalMode ? "magenta" : permMode.mode === "unrestricted" ? "red" : "gray"} paddingLeft={1} width={termSize.columns}>
+        <Box borderStyle="single" borderColor={terminalMode ? "magenta" : interruptPrompt ? "yellow" : permMode.mode === "unrestricted" ? "red" : "gray"} paddingLeft={1} width={termSize.columns}>
           <Box flexGrow={1}>
-            {isProcessing ? (
-              <Box>
-                <Text color="white">{activeTool ? "Agent" : statusWord}  </Text>
-                <Text dimColor>(↓ {formatTokens(tokenUsage.inputTokens + tokenUsage.outputTokens)} tokens)</Text>
-              </Box>
-            ) : (
-              <Box>
-                <Text color={terminalMode ? "magenta" : "cyan"} bold>{terminalMode ? "$" : "❯"} </Text>
-                <TextInput
-                  value={input}
-                  onChange={setInput}
-                  onSubmit={handleSubmit}
-                  placeholder={terminalMode ? "Run a command... (Ctrl+T to switch back)" : "Message OpenAgent... (Ctrl+T for terminal)"}
-                />
-              </Box>
-            )}
+            <Text color={terminalMode ? "magenta" : interruptPrompt ? "yellow" : "cyan"} bold>{terminalMode ? "$" : "❯"} </Text>
+            <TextInput
+              value={input}
+              onChange={setInput}
+              onSubmit={(value) => {
+                if (interruptPrompt) setInterruptPrompt(false);
+                if (isProcessing && value.trim()) {
+                  setQueuedMessages((prev) => [...prev, value.trim()]);
+                  setInput("");
+                  return;
+                }
+                handleSubmit(value);
+              }}
+              placeholder={
+                terminalMode
+                  ? "Run a command… (Ctrl+T to switch back)"
+                  : isProcessing
+                    ? "Queue another message…"
+                    : interruptPrompt
+                      ? "Tell OpenAgent what to do instead…"
+                      : "Message OpenAgent… (Ctrl+T for terminal)"
+              }
+            />
           </Box>
         </Box>
       )}

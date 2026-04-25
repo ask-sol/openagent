@@ -1,7 +1,16 @@
 title: OpenAgent
-description: The open-source Claude Code alternative that works with any AI provider.
+tagline: "The open-source Claude Code alternative — agentic coding for any AI provider"
+description: "OpenAgent is an open-source agentic coding CLI that works with Claude, GPT-5, Gemini, Grok, Ollama, LM Studio, MLX and 12+ providers. A free, multi-provider alternative to Claude Code. Apache 2.0."
 url: https://ask-sol.github.io
 baseurl: "/openagent"
+author: ask-sol
+twitter:
+  username: asksol
+  card: summary_large_image
+social:
+  name: OpenAgent
+  links:
+    - https://github.com/ask-sol/openagent
 
 theme: just-the-docs
 

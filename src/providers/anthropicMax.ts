@@ -7,7 +7,82 @@ import type {
   ProviderResponse,
   StreamChunk,
 } from "./types.js";
-import { highlightLine } from "../utils/syntaxHighlight.js";
+import { readFileSync, existsSync } from "node:fs";
+import { todoWriteTool } from "../tools/TodoWriteTool/index.js";
+
+function pad(n: number, width = 5): string {
+  return String(n).padStart(width, " ");
+}
+
+function lineNumberOf(content: string, charIdx: number): number {
+  if (charIdx < 0) return 1;
+  let line = 1;
+  for (let i = 0; i < charIdx; i++) {
+    if (content.charCodeAt(i) === 10) line++;
+  }
+  return line;
+}
+
+function buildEditOutput(filePath: string, oldStr: string, newStr: string): string {
+  if (!existsSync(filePath)) {
+    return `Updated ${filePath}\nEdit applied (preview unavailable)\n---`;
+  }
+  const newContent = readFileSync(filePath, "utf-8");
+  const oldLines = oldStr.split("\n");
+  const newLines = newStr.split("\n");
+  const oldLineCount = oldLines.length;
+  const newLineCount = newLines.length;
+  const newFileLines = newContent.split("\n");
+  const startLineNew = lineNumberOf(newContent, newContent.indexOf(newStr));
+  const startLineOld = startLineNew;
+  const CONTEXT = 3;
+  const beforeStart = Math.max(1, startLineNew - CONTEXT);
+  const beforeEnd = startLineNew - 1;
+  const afterStart = startLineNew + newLineCount;
+  const afterEnd = Math.min(newFileLines.length, afterStart + CONTEXT - 1);
+
+  const summary =
+    oldLineCount === newLineCount
+      ? `Edited ${oldLineCount} line${oldLineCount === 1 ? "" : "s"}`
+      : oldLineCount > newLineCount
+        ? `Removed ${oldLineCount - newLineCount} line${oldLineCount - newLineCount === 1 ? "" : "s"}`
+        : `Added ${newLineCount - oldLineCount} line${newLineCount - oldLineCount === 1 ? "" : "s"}`;
+
+  const out: string[] = [];
+  out.push(`Updated ${filePath}`);
+  out.push(summary);
+  out.push("---");
+  for (let i = beforeStart; i <= beforeEnd; i++) {
+    out.push(`${pad(i)}    ${newFileLines[i - 1] ?? ""}`);
+  }
+  for (let i = 0; i < oldLineCount; i++) {
+    out.push(`${pad(startLineOld + i)} -  ${oldLines[i]}`);
+  }
+  for (let i = 0; i < newLineCount; i++) {
+    out.push(`${pad(startLineNew + i)} +  ${newLines[i]}`);
+  }
+  for (let i = afterStart; i <= afterEnd; i++) {
+    out.push(`${pad(i)}    ${newFileLines[i - 1] ?? ""}`);
+  }
+  return out.join("\n");
+}
+
+function buildWriteOutput(filePath: string, content: string, existed: boolean): string {
+  const allLines = content.split("\n");
+  const total = allLines.length;
+  const previewMax = 18;
+  const out: string[] = [];
+  out.push(`${existed ? "Overwrote" : "Created"} ${filePath}`);
+  out.push(`Added ${total} line${total === 1 ? "" : "s"}`);
+  out.push("---");
+  for (let i = 0; i < Math.min(total, previewMax); i++) {
+    out.push(`${pad(i + 1)} +  ${allLines[i]}`);
+  }
+  if (total > previewMax) {
+    out.push(`      …  +${total - previewMax} more line${total - previewMax === 1 ? "" : "s"}`);
+  }
+  return out.join("\n");
+}
 
 const config: ProviderConfig = {
   id: "anthropic-max",
@@ -122,63 +197,53 @@ async function* streamRequest(
           if (block.type === "tool_use") {
             toolCount++;
             const input = block.input || {};
-            const name = block.name || "unknown";
+            const claudeName: string = block.name || "unknown";
+            const id = block.id || `call_${toolCount}_${Date.now()}`;
             const filePath = input.file_path || input.path || "";
-            const fileName = filePath ? filePath.split("/").pop() : "";
 
-            if (!agentHeaderShown) {
-              agentHeaderShown = true;
-              yield { type: "text", text: `\n● Agent\n` };
+            // Normalize Claude CLI tool names to OpenAgent's canonical names
+            const nameMap: Record<string, string> = {
+              Edit: "FileEdit",
+              Write: "FileWrite",
+              Read: "FileRead",
+            };
+            const oaName = nameMap[claudeName] || claudeName;
+
+            // TodoWrite: route into our local todo store and suppress visible output
+            if (claudeName === "TodoWrite") {
+              try {
+                await todoWriteTool.execute(input, { cwd: process.cwd() });
+              } catch {}
+              continue;
             }
 
-            let toolLine = "";
-            let detail = "";
+            // Build a structured result string the REPL renderer can parse
+            let constructedResult = "";
+            try {
+              if (claudeName === "Edit") {
+                constructedResult = buildEditOutput(
+                  filePath,
+                  input.old_string || input.old_str || "",
+                  input.new_string || input.new_str || "",
+                );
+              } else if (claudeName === "Write") {
+                constructedResult = buildWriteOutput(
+                  filePath,
+                  input.content || "",
+                  existsSync(filePath),
+                );
+              }
+            } catch {}
 
-            if (name === "Bash") {
-              const cmd = input.command || input.cmd || "";
-              toolLine = `Bash(${cmd.length > 70 ? cmd.slice(0, 67) + "..." : cmd})`;
-            } else if (name === "Write") {
-              toolLine = `Create(${filePath})`;
-              const fileContent = input.content || "";
-              const lines = fileContent.split("\n");
-              detail = `   ⎿ Added ${lines.length} lines\n`;
-              const show = Math.min(lines.length, 15);
-              for (let i = 0; i < show; i++) {
-                const hl = highlightLine(lines[i], filePath);
-                detail += `${String(i + 1).padStart(6)} +   ${hl}\n`;
-              }
-              if (lines.length > 15) detail += `       ... +${lines.length - 15} more lines\n`;
-            } else if (name === "Edit") {
-              toolLine = `Update(${filePath})`;
-              const oldL = (input.old_string || input.old_str || "").split("\n");
-              const newL = (input.new_string || input.new_str || "").split("\n");
-              detail = `   ⎿ Added ${newL.length} lines, removed ${oldL.length} lines\n`;
-              for (let i = 0; i < Math.min(oldL.length, 8); i++) {
-                const hl = highlightLine(oldL[i], filePath);
-                detail += `${String(i + 1).padStart(6)} -   ${hl}\n`;
-              }
-              for (let i = 0; i < Math.min(newL.length, 8); i++) {
-                const hl = highlightLine(newL[i], filePath);
-                detail += `${String(i + 1).padStart(6)} +   ${hl}\n`;
-              }
-            } else if (name === "Read") {
-              toolLine = `Read(${fileName})`;
-            } else if (name === "WebSearch") {
-              toolLine = `Web(${input.query || ""})`;
-            } else if (name === "WebFetch") {
-              toolLine = `Fetch(${(input.url || "").slice(0, 60)})`;
-            } else if (name === "Glob") {
-              toolLine = `Glob(${input.pattern || ""})`;
-            } else if (name === "Grep") {
-              toolLine = `Grep(${input.pattern || ""})`;
-            } else if (name === "ToolSearch") {
-              toolLine = `Search(${input.query || ""})`;
-            } else {
-              toolLine = `${name}(${JSON.stringify(input).slice(0, 50)})`;
-            }
-
-            yield { type: "text", text: `   ⎿ ${toolLine}\n` };
-            if (detail) yield { type: "text", text: detail };
+            yield {
+              type: "tool_executed",
+              toolCall: {
+                id,
+                name: oaName,
+                arguments: JSON.stringify(input),
+              },
+              toolResult: constructedResult || `Ran ${oaName}`,
+            };
           }
         }
 
@@ -190,22 +255,12 @@ async function* streamRequest(
       }
 
       if (event.type === "user") {
+        // Suppress tool_result echoes — REPL renders structured tool output
+        // via onToolEnd / DiffView. Echoing the raw API result text only
+        // duplicates the rendered tool block and leaks system-y text into chat.
         const content = event.message?.content || [];
-        for (const block of (Array.isArray(content) ? content : [])) {
-          if (block.type === "tool_result") {
-            const resultText = typeof block.content === "string"
-              ? block.content
-              : Array.isArray(block.content)
-                ? block.content.map((c: any) => c.text || "").join("")
-                : JSON.stringify(block.content || "");
-
-            if (resultText) {
-              const truncated = resultText.length > 200 ? resultText.slice(0, 200) + "..." : resultText;
-              const isSuccess = truncated.includes("successfully") || truncated.includes("passed") || truncated.includes("created");
-              const prefix = isSuccess ? "✓" : "⎿";
-              yield { type: "text", text: `${prefix} ${truncated}\n` };
-            }
-          }
+        for (const _block of (Array.isArray(content) ? content : [])) {
+          // intentionally empty
         }
       }
 

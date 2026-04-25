@@ -159,6 +159,28 @@ export async function runQueryLoop(
             }
             break;
 
+          case "tool_executed":
+            // Provider already ran the tool (e.g. anthropic-max via Claude CLI).
+            // Surface to the UI without going through OpenAgent's tool execution layer.
+            if (chunk.toolCall) {
+              callbacks.onToolStart(chunk.toolCall.name, chunk.toolCall.id);
+              let parsedArgs: Record<string, unknown> = {};
+              try {
+                parsedArgs = JSON.parse(chunk.toolCall.arguments || "{}");
+              } catch {}
+              callbacks.onToolEnd(
+                chunk.toolCall.name,
+                chunk.toolCall.id,
+                chunk.toolResult || "",
+                chunk.toolError,
+                parsedArgs,
+              );
+              // Drop any pending entry — we don't want to re-execute.
+              const idx = pendingToolCalls.findIndex((tc) => tc.id === chunk.toolCall!.id);
+              if (idx >= 0) pendingToolCalls.splice(idx, 1);
+            }
+            break;
+
           case "done":
             if (chunk.usage) {
               totalUsage.inputTokens += chunk.usage.inputTokens;

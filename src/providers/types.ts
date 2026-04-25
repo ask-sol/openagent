@@ -35,13 +35,23 @@ export interface ProviderTool {
 }
 
 export interface StreamChunk {
-  type: "text" | "tool_call_start" | "tool_call_delta" | "tool_call_end" | "done" | "error";
+  type:
+    | "text"
+    | "tool_call_start"
+    | "tool_call_delta"
+    | "tool_call_end"
+    | "tool_executed"
+    | "done"
+    | "error";
   text?: string;
   toolCall?: {
     id: string;
     name: string;
     arguments: string;
   };
+  /** For tool_executed: the rendered tool output (provider ran the tool itself, e.g. anthropic-max) */
+  toolResult?: string;
+  toolError?: string;
   error?: string;
   usage?: TokenUsage;
 }

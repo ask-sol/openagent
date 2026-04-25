@@ -1,9 +1,13 @@
 ---
-title: Home
+title: OpenAgent — Open-source Claude Code alternative
+nav_title: Home
 layout: default
 nav_order: 1
-description: "OpenAgent — the open-source Claude Code alternative that works with any AI provider."
+description: "OpenAgent is the open-source Claude Code alternative — an agentic coding CLI that works with Claude, GPT-5, Gemini, Ollama, and 12+ AI providers from your terminal. Apache 2.0."
 permalink: /
+seo:
+  type: SoftwareApplication
+  name: OpenAgent
 ---
 
 # OpenAgent
