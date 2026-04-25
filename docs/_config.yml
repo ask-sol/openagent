@@ -3,7 +3,7 @@ description: The open-source Claude Code alternative that works with any AI prov
 url: https://ask-sol.github.io
 baseurl: "/openagent"
 
-remote_theme: just-the-docs/just-the-docs
+theme: just-the-docs
 
 color_scheme: dark
 
@@ -55,6 +55,7 @@ plugins:
   - jekyll-seo-tag
   - jekyll-sitemap
   - jekyll-redirect-from
+  - jekyll-include-cache
 
 defaults:
   - scope:
