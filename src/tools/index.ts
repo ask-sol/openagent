@@ -9,6 +9,7 @@ import { webFetchTool } from "./WebFetchTool/index.js";
 import { redditPostTool } from "./RedditTool/index.js";
 import { xPostTool } from "./XTool/index.js";
 import { todoWriteTool } from "./TodoWriteTool/index.js";
+import { uploadTool } from "./UploadTool/index.js";
 import { getEnabledPluginTools } from "../plugins/index.js";
 import { getMcpTools, callMcpTool } from "../mcp/client.js";
 import type { Tool } from "./types.js";
@@ -25,6 +26,7 @@ const baseTools: Tool[] = [
   webSearchTool,
   webFetchTool,
   todoWriteTool,
+  uploadTool,
   redditPostTool,
   xPostTool,
 ];

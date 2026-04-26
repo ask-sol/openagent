@@ -24,7 +24,7 @@ import type { TokenUsage } from "../providers/types.js";
 
 export interface CommandResult {
   output: string;
-  action?: "clear" | "exit" | "resume" | "setup" | "switch-view" | "pick-provider" | "pick-model" | "setup-reddit" | "setup-x" | "compact" | "pick-mcp" | "pick-plugins";
+  action?: "clear" | "exit" | "resume" | "setup" | "switch-view" | "pick-provider" | "pick-model" | "setup-reddit" | "setup-x" | "compact" | "pick-mcp" | "pick-plugins" | "upload";
   data?: any;
 }
 
@@ -398,6 +398,10 @@ cmd("mcp-status", ["mcps"], "Tools", "Show currently-connected MCP servers", () 
 
 cmd("plugins", ["plugin"], "Tools", "Browse and install agent plugins", () => {
   return { output: "", action: "pick-plugins" };
+});
+
+cmd("upload", ["share", "send"], "Files", "Share a file over LAN with a QR code (one-shot download)", () => {
+  return { output: "", action: "upload" };
 });
 
 cmd("files", ["ls", "tree"], "Files", "List files in current directory", (args, ctx) => {

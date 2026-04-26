@@ -38,6 +38,7 @@
     "marked-terminal": "^7.3.0",
     "openai": "^4.86.0",
     "ora": "^8.2.0",
+    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "snoowrap": "^1.23.0",
     "string-width": "^7.2.0",
@@ -48,6 +49,7 @@
   "devDependencies": {
     "@types/diff": "^7.0.2",
     "@types/node": "^22.15.3",
+    "@types/qrcode": "^1.5.5",
     "@types/react": "^18.3.12",
     "@types/uuid": "^10.0.0",
     "bun-types": "^1.2.12",

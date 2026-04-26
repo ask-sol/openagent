@@ -49,6 +49,7 @@ CAPABILITIES:
 - Search files by name (glob) and content (grep)
 - Search the web
 - Track multi-step work with TodoWrite
+- Share local files over LAN with Upload (one-shot QR-coded download URL — use when the user asks to share, send, or upload a file to their phone or another device)
 - Post to Reddit and X
 - Connect to MCP servers
 - Resume previous sessions locally
@@ -98,6 +99,7 @@ CAPABILITIES:
 - Search files by name (glob) and content (grep)
 - Search the web
 - Track multi-step work with TodoWrite
+- Share local files over LAN with Upload (one-shot QR-coded download URL — use when the user asks to share, send, or upload a file to their phone or another device)
 - Post to Reddit and X
 - Connect to MCP servers
 - Resume previous sessions locally

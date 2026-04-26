@@ -33,7 +33,9 @@ import { detectProject, formatProjectInfo } from "../utils/projectDetect.js";
 import { DiffView } from "./DiffView.js";
 import { McpStore } from "./McpStore.js";
 import { PluginStore } from "./PluginStore.js";
+import { UploadView } from "./UploadView.js";
 import { subscribeTodos, clearTodos, type TodoItem } from "../tools/TodoWriteTool/index.js";
+import { setUploadListener } from "../tools/UploadTool/index.js";
 import { filterStreamText, shortPath } from "../utils/streamFilter.js";
 import { estimateCost } from "../utils/costTracker.js";
 import { renderMarkdown } from "../utils/renderMarkdown.js";
@@ -65,7 +67,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
   const [error, setError] = useState("");
   const [thinking, setThinking] = useState(initialThinking);
   const [settings, setSettings] = useState(initialSettings);
-  const [pickerView, setPickerView] = useState<"none" | "provider" | "model" | "reddit" | "x" | "whatsapp" | "discord" | "mcp" | "plugins">("none");
+  const [pickerView, setPickerView] = useState<"none" | "provider" | "model" | "reddit" | "x" | "whatsapp" | "discord" | "mcp" | "plugins" | "upload">("none");
   const [permissionPrompt, setPermissionPrompt] = useState<{ name: string; desc: string } | null>(null);
   const permissionResolveRef = useRef<((allowed: boolean) => void) | null>(null);
 
@@ -98,6 +100,16 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
 
   useEffect(() => {
     return subscribeTodos((s) => setTodoItems([...s.items]));
+  }, []);
+
+  useEffect(() => {
+    setUploadListener((summary, donePromise) => {
+      setDisplayMessages((prev) => [...prev, { role: "system", content: summary }]);
+      donePromise.then((msg) => {
+        setDisplayMessages((prev) => [...prev, { role: "system", content: msg }]);
+      });
+    });
+    return () => setUploadListener(null);
   }, []);
 
   useInput((ch, key) => {
@@ -372,6 +384,11 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
 
         if (result.action === "pick-plugins") {
           setPickerView("plugins");
+          return;
+        }
+
+        if (result.action === "upload") {
+          setPickerView("upload");
           return;
         }
 
@@ -772,6 +789,14 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
     return (
       <Box flexDirection="column" width={termSize.columns}>
         <PluginStore onClose={handlePickerCancel} />
+      </Box>
+    );
+  }
+
+  if (pickerView === "upload") {
+    return (
+      <Box flexDirection="column" width={termSize.columns}>
+        <UploadView onClose={handlePickerCancel} />
       </Box>
     );
   }
