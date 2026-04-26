@@ -13,7 +13,6 @@
 
 <!-- stats-start -->
 <p align="center">
-  <img alt="GitHub stars" src="https://img.shields.io/github/stars/ask-sol/openagent?style=for-the-badge&color=yellow&label=stars" />
   <img alt="Total clones" src="https://img.shields.io/badge/clones-1%2C580-9b59b6?style=for-the-badge" />
   <img alt="Unique users" src="https://img.shields.io/badge/unique%20users-545-ec4899?style=for-the-badge" />
 </p>
