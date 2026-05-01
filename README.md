@@ -14,11 +14,11 @@
 <!-- stats-start -->
 <p align="center">
   <img alt="GitHub stars" src="https://img.shields.io/github/stars/ask-sol/openagent?style=for-the-badge&color=yellow&label=stars" />
-  <img alt="Total clones" src="https://img.shields.io/badge/clones-2%2C652-9b59b6?style=for-the-badge" />
-  <img alt="Unique users" src="https://img.shields.io/badge/unique%20users-859-ec4899?style=for-the-badge" />
+  <img alt="Total clones" src="https://img.shields.io/badge/clones-2%2C678-9b59b6?style=for-the-badge" />
+  <img alt="Unique users" src="https://img.shields.io/badge/unique%20users-872-ec4899?style=for-the-badge" />
 </p>
 
-<p align="center"><sub>Tracking since 2026-04-19 • 2,652 clones and 738 unique users in the last 14 days • updated 2026-04-30</sub></p>
+<p align="center"><sub>Tracking since 2026-04-19 • 2,027 clones and 568 unique users in the last 14 days • updated 2026-05-01</sub></p>
 <!-- stats-end -->
 
 <p align="center">
