@@ -27,7 +27,7 @@ interface PendingToolCall {
 
 function getGitBranch(cwd: string): Promise<string> {
   return new Promise((resolve) => {
-    exec("git rev-parse --abbrev-ref HEAD 2>/dev/null", { cwd }, (err, stdout) => {
+    exec("git rev-parse --abbrev-ref HEAD", { cwd, windowsHide: true }, (err, stdout) => {
       resolve(err ? "" : stdout.trim());
     });
   });

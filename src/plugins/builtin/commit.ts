@@ -1,6 +1,11 @@
 import { exec } from "node:child_process";
+import { isWindows } from "../../utils/platform.js";
 import type { Plugin } from "../index.js";
 import type { Tool } from "../../tools/types.js";
+
+const SHELL_OPTS = isWindows()
+  ? { shell: "powershell.exe" as const, windowsHide: true }
+  : { windowsHide: true };
 
 const commitMsgTool: Tool = {
   name: "CommitMessage",
@@ -10,19 +15,24 @@ const commitMsgTool: Tool = {
   async execute(_input, ctx) {
     return new Promise((resolve) => {
       exec(
-        "git diff --staged --stat && echo '---DIFF---' && git diff --staged",
-        { cwd: ctx.cwd, timeout: 10000, maxBuffer: 5 * 1024 * 1024 },
-        (err, stdout) => {
+        "git diff --staged --stat",
+        { cwd: ctx.cwd, timeout: 10000, maxBuffer: 5 * 1024 * 1024, ...SHELL_OPTS },
+        (err, statOut) => {
           if (err) return resolve({ output: "", error: "git diff failed — are you in a git repo with staged changes?" });
-          const out = stdout.trim();
-          if (!out || !out.includes("---DIFF---")) {
+          if (!statOut.trim()) {
             return resolve({ output: "", error: "No staged changes. Run `git add <files>` first." });
           }
-          const [stat, diff] = out.split("---DIFF---");
-          const truncDiff = diff.length > 8000 ? diff.slice(0, 8000) + "\n[…truncated]" : diff;
-          resolve({
-            output: `Staged files:\n${stat.trim()}\n\nFull diff (use this to write a Conventional Commits message — feat / fix / chore / refactor / docs / test):\n${truncDiff}`,
-          });
+          exec(
+            "git diff --staged",
+            { cwd: ctx.cwd, timeout: 10000, maxBuffer: 5 * 1024 * 1024, ...SHELL_OPTS },
+            (err2, diffOut) => {
+              if (err2) return resolve({ output: "", error: "git diff failed" });
+              const truncDiff = diffOut.length > 8000 ? diffOut.slice(0, 8000) + "\n[…truncated]" : diffOut;
+              resolve({
+                output: `Staged files:\n${statOut.trim()}\n\nFull diff (use this to write a Conventional Commits message — feat / fix / chore / refactor / docs / test):\n${truncDiff}`,
+              });
+            },
+          );
         },
       );
     });

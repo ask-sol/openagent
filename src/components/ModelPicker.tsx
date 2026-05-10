@@ -7,6 +7,26 @@ import { totalmem, platform as osPlatform, arch as osArch } from "node:os";
 import { getAllProviders, getProvider } from "../providers/index.js";
 import { loadSettings, saveSettings } from "../config/settings.js";
 import { parsePullPercent } from "../utils/progressBar.js";
+import { isWindows, isMac, openUrl, spawnDetached } from "../utils/platform.js";
+
+const RUNTIME_SHELL = isWindows() ? "powershell.exe" : "/bin/bash";
+
+async function pingHealth(url: string, timeoutMs = 3000): Promise<boolean> {
+  try {
+    await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function startServerDetached(startCmd: string) {
+  if (!startCmd) return;
+  try {
+    const parts = startCmd.trim().split(/\s+/);
+    spawnDetached(parts[0], parts.slice(1));
+  } catch {}
+}
 
 type Step =
   | "type"
@@ -76,6 +96,7 @@ interface RuntimeCmds {
   binCheck: string;
   installDarwin: string;
   installLinux: string;
+  installWindows?: string;
   postInstall?: string;
   healthUrl: string;
   startServer: string;
@@ -85,7 +106,9 @@ interface RuntimeCmds {
   apiKey: string;
   port: number;
   installUrl: string;
+  installUrlWindows?: string;
   requiresAppleSilicon?: boolean;
+  windowsUnsupported?: boolean;
 }
 
 const RUNTIME_CMDS: Record<LocalRuntime, RuntimeCmds> = {
@@ -101,20 +124,29 @@ const RUNTIME_CMDS: Record<LocalRuntime, RuntimeCmds> = {
     apiKey: "http://localhost:11434",
     port: 11434,
     installUrl: "https://ollama.com/download",
+    installUrlWindows: "https://ollama.com/download/windows",
   },
   lmstudio: {
     label: "LM Studio",
-    binCheck: "lms --version 2>/dev/null || test -x ~/.lmstudio/bin/lms",
+    binCheck: isWindows() ? "lms --version" : "lms --version 2>/dev/null || test -x ~/.lmstudio/bin/lms",
     installDarwin: "brew install --cask lm-studio 2>&1",
     installLinux: "echo 'LM Studio on Linux requires manual install from https://lmstudio.ai/download' >&2; exit 1",
-    postInstall: "~/.lmstudio/bin/lms bootstrap 2>&1 || (open -a 'LM Studio' 2>/dev/null && sleep 3)",
+    postInstall: isWindows()
+      ? ""
+      : "~/.lmstudio/bin/lms bootstrap 2>&1 || (open -a 'LM Studio' 2>/dev/null && sleep 3)",
     healthUrl: "http://localhost:1234/v1/models",
-    startServer: "lms server start 2>&1 || ~/.lmstudio/bin/lms server start 2>&1",
-    pull: (m) => `(lms get "${m}" -y 2>&1 || ~/.lmstudio/bin/lms get "${m}" -y 2>&1)`,
+    startServer: isWindows()
+      ? "lms server start"
+      : "lms server start 2>&1 || ~/.lmstudio/bin/lms server start 2>&1",
+    pull: (m) =>
+      isWindows()
+        ? `lms get "${m}" -y`
+        : `(lms get "${m}" -y 2>&1 || ~/.lmstudio/bin/lms get "${m}" -y 2>&1)`,
     providerId: "lmstudio",
     apiKey: "http://localhost:1234/v1",
     port: 1234,
     installUrl: "https://lmstudio.ai/download",
+    installUrlWindows: "https://lmstudio.ai/download",
   },
   mlx: {
     label: "MLX",
@@ -130,6 +162,7 @@ const RUNTIME_CMDS: Record<LocalRuntime, RuntimeCmds> = {
     port: 8080,
     installUrl: "https://github.com/ml-explore/mlx-lm",
     requiresAppleSilicon: true,
+    windowsUnsupported: true,
   },
 };
 
@@ -193,7 +226,7 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
   useEffect(() => {
     if (step === "local-model") {
       import("node:child_process").then(({ exec }) => {
-        exec(rt.binCheck, { timeout: 3000, shell: "/bin/bash" } as any, (err) => {
+        exec(rt.binCheck, { timeout: 3000, shell: RUNTIME_SHELL, windowsHide: true } as any, (err) => {
           setRuntimeInstalled(!err);
         });
       });
@@ -252,14 +285,12 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
     });
   }, [step]);
 
-  function ensureServing(exec: any, cb: () => void) {
+  async function ensureServing(cb: () => void) {
     if (!rt.startServer) { cb(); return; }
-    exec(`curl -s ${rt.healthUrl}`, { timeout: 3000 }, (err: any) => {
-      if (!err) { cb(); return; }
-      setPullProgress(`Starting ${rt.label} server...`);
-      exec(`${rt.startServer} &`, { timeout: 3000, shell: "/bin/bash" }, () => {});
-      setTimeout(cb, 2500);
-    });
+    if (await pingHealth(rt.healthUrl)) { cb(); return; }
+    setPullProgress(`Starting ${rt.label} server...`);
+    startServerDetached(rt.startServer);
+    setTimeout(cb, 2500);
   }
 
   function startPull(model: string) {
@@ -268,7 +299,7 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
     setStep("pulling");
 
     import("node:child_process").then(({ exec, spawn }) => {
-      ensureServing(exec, () => {
+      ensureServing(() => {
         doPull(model, spawn, exec);
       });
     });
@@ -278,7 +309,9 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
     const cmd = rt.pull(model);
     setPullProgress(`Downloading ${model}...`);
 
-    const child = spawn("/bin/bash", ["-c", cmd], { stdio: ["ignore", "pipe", "pipe"] });
+    const child = isWindows()
+      ? spawn("powershell.exe", ["-NoProfile", "-Command", cmd], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true })
+      : spawn("/bin/bash", ["-c", cmd], { stdio: ["ignore", "pipe", "pipe"] });
 
     const onData = (d: Buffer) => {
       const text = d.toString().replace(/\r/g, "\n");
@@ -296,7 +329,7 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
         setPullProgress("Download complete.");
         if (rt.postPull) {
           setPullProgress("Starting model server...");
-          exec(rt.postPull(model), { timeout: 30000, shell: "/bin/bash" }, () => {
+          exec(rt.postPull(model), { timeout: 30000, shell: RUNTIME_SHELL, windowsHide: true }, () => {
             finish(model);
           });
         } else {
@@ -314,22 +347,18 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
     });
   }
 
-  function finish(model: string) {
+  async function finish(model: string) {
     setPullProgress("Finalizing...");
-    import("node:child_process").then(({ exec }) => {
-      exec(`curl -s ${rt.healthUrl}`, { timeout: 3000 }, (err) => {
-        if (err && rt.startServer) {
-          exec(`${rt.startServer} &`, { timeout: 3000, shell: "/bin/bash" }, () => {});
-        }
-        const updated = loadSettings();
-        updated.provider = rt.providerId;
-        updated.model = model;
-        updated.apiKey = rt.apiKey;
-        saveSettings(updated);
-        setPullProgress("Ready.");
-        setTimeout(() => onComplete(rt.providerId, model), 1000);
-      });
-    });
+    if (!(await pingHealth(rt.healthUrl)) && rt.startServer) {
+      startServerDetached(rt.startServer);
+    }
+    const updated = loadSettings();
+    updated.provider = rt.providerId;
+    updated.model = model;
+    updated.apiKey = rt.apiKey;
+    saveSettings(updated);
+    setPullProgress("Ready.");
+    setTimeout(() => onComplete(rt.providerId, model), 1000);
   }
 
   if (step === "type") {
@@ -519,7 +548,7 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
         <Text color="cyan"><Spinner type="dots" /> Checking for {rt.label}...</Text>
         {(() => {
           import("node:child_process").then(({ exec }) => {
-            exec(rt.binCheck, { timeout: 3000, shell: "/bin/bash" } as any, (err) => {
+            exec(rt.binCheck, { timeout: 3000, shell: RUNTIME_SHELL, windowsHide: true } as any, (err) => {
               if (err) {
                 setStep("installing-runtime");
               } else {
@@ -551,14 +580,29 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
             if (item.value === "back") { setStep("local-runtime"); return; }
             if (item.value === "skip") { setStep("local-model"); return; }
 
+            if (isWindows()) {
+              if (rt.windowsUnsupported) {
+                setPullProgress(`${rt.label} is not supported on Windows.`);
+                setTimeout(() => setStep("local-runtime"), 3000);
+                return;
+              }
+              setPullProgress(`Opening ${rt.label} installer in browser...`);
+              setStep("pulling");
+              openUrl(rt.installUrlWindows || rt.installUrl);
+              setTimeout(() => {
+                setPullProgress(`Once ${rt.label} is installed, restart OpenAgent.`);
+                setTimeout(() => setStep("local-model"), 4000);
+              }, 1500);
+              return;
+            }
+
             setPullProgress(`Installing ${rt.label}...`);
             setStep("pulling");
 
             import("node:child_process").then(({ exec }) => {
-              const platform = process.platform;
-              const cmd = platform === "darwin" ? rt.installDarwin : rt.installLinux;
+              const cmd = isMac() ? rt.installDarwin : rt.installLinux;
 
-              exec(cmd, { timeout: 180000, shell: "/bin/bash" } as any, (err, stdout, stderr) => {
+              exec(cmd, { timeout: 180000, shell: RUNTIME_SHELL, windowsHide: true } as any, (err, stdout, stderr) => {
                 if (err) {
                   setPullProgress(`Install failed: ${(stderr || stdout || err.message).slice(0, 200)}`);
                   setTimeout(() => setStep("local-runtime"), 4000);
@@ -567,18 +611,14 @@ export function ModelPicker({ onComplete, onCancel }: ModelPickerProps) {
                 const afterInstall = () => {
                   setPullProgress(`${rt.label} installed.`);
                   if (rt.startServer) {
-                    exec(`${rt.startServer} &`, { timeout: 5000, shell: "/bin/bash" } as any, () => {
-                      setRuntimeInstalled(true);
-                      setTimeout(() => setStep("local-model"), 1500);
-                    });
-                  } else {
-                    setRuntimeInstalled(true);
-                    setTimeout(() => setStep("local-model"), 1500);
+                    startServerDetached(rt.startServer);
                   }
+                  setRuntimeInstalled(true);
+                  setTimeout(() => setStep("local-model"), 1500);
                 };
                 if (rt.postInstall) {
                   setPullProgress(`Setting up ${rt.label} CLI...`);
-                  exec(rt.postInstall, { timeout: 30000, shell: "/bin/bash" } as any, () => afterInstall());
+                  exec(rt.postInstall, { timeout: 30000, shell: RUNTIME_SHELL, windowsHide: true } as any, () => afterInstall());
                 } else {
                   afterInstall();
                 }

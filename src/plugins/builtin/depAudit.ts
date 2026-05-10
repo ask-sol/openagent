@@ -1,8 +1,13 @@
 import { exec } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { isWindows } from "../../utils/platform.js";
 import type { Plugin } from "../index.js";
 import type { Tool } from "../../tools/types.js";
+
+const SHELL_OPTS = isWindows()
+  ? { shell: "powershell.exe" as const, windowsHide: true }
+  : { windowsHide: true };
 
 const depAuditTool: Tool = {
   name: "DepAudit",
@@ -18,7 +23,7 @@ const depAuditTool: Tool = {
     if (!cmd) return { output: "", error: "No supported dep manifest (package.json / Cargo.toml / pyproject.toml)." };
 
     return new Promise((resolve) => {
-      exec(cmd!, { cwd: ctx.cwd, timeout: 120000, maxBuffer: 20 * 1024 * 1024 }, (_err, stdout, stderr) => {
+      exec(cmd!, { cwd: ctx.cwd, timeout: 120000, maxBuffer: 20 * 1024 * 1024, ...SHELL_OPTS }, (_err, stdout, stderr) => {
         try {
           const data = JSON.parse(stdout || stderr);
           if (data.metadata?.vulnerabilities) {

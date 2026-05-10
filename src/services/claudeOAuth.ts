@@ -208,9 +208,8 @@ export async function startOAuthLogin(): Promise<{ success: boolean; error?: str
 
     const authUrl = `${AUTH_URL}?${params.toString()}`;
 
-    import("node:child_process").then(({ exec }) => {
-      const openCmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
-      exec(`${openCmd} "${authUrl}"`);
+    import("../utils/platform.js").then(({ openUrl }) => {
+      openUrl(authUrl);
     });
 
     console.log(`\n  Opening browser for Claude login...`);

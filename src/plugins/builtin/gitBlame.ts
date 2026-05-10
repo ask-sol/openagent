@@ -1,7 +1,12 @@
 import { exec } from "node:child_process";
 import { isAbsolute, resolve } from "node:path";
+import { isWindows } from "../../utils/platform.js";
 import type { Plugin } from "../index.js";
 import type { Tool } from "../../tools/types.js";
+
+const SHELL_OPTS = isWindows()
+  ? { shell: "powershell.exe" as const, windowsHide: true }
+  : { windowsHide: true };
 
 const gitBlameTool: Tool = {
   name: "GitBlame",
@@ -24,7 +29,7 @@ const gitBlameTool: Tool = {
     const end = input.end_line as number;
     const cmd = `git blame -L ${start},${end} --porcelain "${filePath}"`;
     return new Promise((resolve) => {
-      exec(cmd, { cwd: ctx.cwd, timeout: 15000 }, (err, stdout, stderr) => {
+      exec(cmd, { cwd: ctx.cwd, timeout: 15000, ...SHELL_OPTS }, (err, stdout, stderr) => {
         if (err) return resolve({ output: "", error: stderr.trim() || err.message });
         const shas = new Set<string>();
         for (const line of stdout.split("\n")) {
@@ -35,7 +40,7 @@ const gitBlameTool: Tool = {
         if (shas.size === 0) return resolve({ output: summaryLines.join("\n") });
         const shaList = Array.from(shas).slice(0, 5);
         const logCmd = `git show --no-patch --pretty=format:'%h %an, %ar — %s' ${shaList.join(" ")}`;
-        exec(logCmd, { cwd: ctx.cwd, timeout: 10000 }, (e2, out2) => {
+        exec(logCmd, { cwd: ctx.cwd, timeout: 10000, ...SHELL_OPTS }, (e2, out2) => {
           summaryLines.push("Commits:");
           summaryLines.push(e2 ? "(could not resolve)" : out2.trim());
           resolve({ output: summaryLines.join("\n") });

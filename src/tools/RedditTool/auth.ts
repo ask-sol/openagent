@@ -32,8 +32,8 @@ export async function setupReddit(): Promise<string> {
   const state = Math.random().toString(36).slice(2);
   const authUrl = `https://www.reddit.com/api/v1/authorize?client_id=${clientId.trim()}&response_type=code&state=${state}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&duration=permanent&scope=${encodeURIComponent(SCOPES)}`;
 
-  const { exec } = await import("node:child_process");
-  exec(`open "${authUrl}"`);
+  const { openUrl } = await import("../../utils/platform.js");
+  openUrl(authUrl);
 
   console.log("  If browser didn't open, go to:");
   console.log(`  ${authUrl}\n`);

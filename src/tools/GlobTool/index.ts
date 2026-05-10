@@ -1,5 +1,6 @@
-import { exec } from "node:child_process";
+import fg from "fast-glob";
 import { resolve, isAbsolute } from "node:path";
+import { statSync } from "node:fs";
 import type { Tool, ToolResult, ToolContext } from "../types.js";
 
 export const globTool: Tool = {
@@ -25,30 +26,47 @@ export const globTool: Tool = {
     input: Record<string, unknown>,
     context: ToolContext
   ): Promise<ToolResult> {
-    const pattern = input.pattern as string;
+    const pattern = (input.pattern as string) || "";
     const searchPath = input.path
       ? isAbsolute(input.path as string)
         ? (input.path as string)
         : resolve(context.cwd, input.path as string)
       : context.cwd;
 
-    const safePattern = pattern.replace(/'/g, "'\\''");
+    const normalized = pattern.includes("/") ? pattern : `**/${pattern}`;
 
-    return new Promise((resolve_) => {
-      const cmd = `find ${searchPath} -path '*/node_modules' -prune -o -path '*/.git' -prune -o -path '*/dist' -prune -o -name '${safePattern.replace(/\*\*\//g, "")}' -print 2>/dev/null | head -200`;
-
-      exec(cmd, { cwd: searchPath, timeout: 30000 }, (err, stdout) => {
-        const files = (stdout || "")
-          .trim()
-          .split("\n")
-          .filter((f) => f.length > 0);
-
-        resolve_({
-          output: files.length > 0
-            ? `Found ${files.length} files:\n${files.join("\n")}`
-            : "No files matched the pattern.",
-        });
+    try {
+      const matches = await fg(normalized, {
+        cwd: searchPath,
+        ignore: ["**/node_modules/**", "**/.git/**", "**/dist/**", "**/build/**"],
+        onlyFiles: true,
+        dot: false,
+        followSymbolicLinks: false,
+        suppressErrors: true,
+        absolute: true,
       });
-    });
+
+      const sorted = matches
+        .map((p) => {
+          try {
+            return { path: p, mtime: statSync(p).mtimeMs };
+          } catch {
+            return { path: p, mtime: 0 };
+          }
+        })
+        .sort((a, b) => b.mtime - a.mtime)
+        .slice(0, 200)
+        .map((e) => e.path);
+
+      if (sorted.length === 0) {
+        return { output: "No files matched the pattern." };
+      }
+
+      return {
+        output: `Found ${sorted.length} files:\n${sorted.join("\n")}`,
+      };
+    } catch (err: any) {
+      return { output: `Glob failed: ${err.message}` };
+    }
   },
 };

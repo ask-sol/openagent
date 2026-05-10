@@ -1,8 +1,13 @@
 import { exec } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { isWindows } from "../../utils/platform.js";
 import type { Plugin } from "../index.js";
 import type { Tool } from "../../tools/types.js";
+
+const SHELL_OPTS = isWindows()
+  ? { shell: "powershell.exe" as const, windowsHide: true }
+  : { windowsHide: true };
 
 function detectCoverageCmd(cwd: string): { cmd: string; reason: string } | null {
   const pkgPath = join(cwd, "package.json");
@@ -28,7 +33,7 @@ const coverageTool: Tool = {
     const detected = detectCoverageCmd(ctx.cwd);
     if (!detected) return { output: "", error: "No coverage runner detected. Install vitest/jest with coverage, pytest-cov, or tarpaulin." };
     return new Promise((resolve) => {
-      exec(detected.cmd, { cwd: ctx.cwd, timeout: 240000, maxBuffer: 10 * 1024 * 1024 }, (_err, stdout, stderr) => {
+      exec(detected.cmd, { cwd: ctx.cwd, timeout: 240000, maxBuffer: 10 * 1024 * 1024, ...SHELL_OPTS }, (_err, stdout, stderr) => {
         const out = (stdout + stderr).trim();
         const tail = out.length > 4000 ? out.slice(-4000) : out;
         resolve({ output: `Coverage via ${detected.reason}\n\n${tail || "(no output)"}` });

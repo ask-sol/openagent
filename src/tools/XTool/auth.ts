@@ -113,8 +113,8 @@ export async function setupX(): Promise<string> {
   const authorizeUrl = `https://api.twitter.com/oauth/authorize?oauth_token=${oauthToken}`;
 
   console.log("\n  Opening browser for authorization...\n");
-  const { exec } = await import("node:child_process");
-  exec(`open "${authorizeUrl}"`);
+  const { openUrl } = await import("../../utils/platform.js");
+  openUrl(authorizeUrl);
 
   console.log("  If browser didn't open, go to:");
   console.log(`  ${authorizeUrl}\n`);

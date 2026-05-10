@@ -1,10 +1,23 @@
 import { exec } from "node:child_process";
+import { isWindows } from "../../utils/platform.js";
 import type { Tool, ToolResult, ToolContext } from "../types.js";
+
+function pickShell(): string {
+  if (isWindows()) {
+    return process.env.OPENAGENT_SHELL || "powershell.exe";
+  }
+  return process.env.SHELL || "/bin/sh";
+}
+
+function adaptCommand(command: string): string {
+  if (!isWindows()) return command;
+  return command.replace(/2>\/dev\/null/g, "2>$null").replace(/\/dev\/null/g, "$null");
+}
 
 export const bashTool: Tool = {
   name: "Bash",
   description:
-    "Execute a shell command and return its output. Use for system commands, git operations, package management, running tests, and build commands.",
+    "Execute a shell command and return its output. Use for system commands, git operations, package management, running tests, and build commands. Runs in PowerShell on Windows, /bin/sh elsewhere.",
   parameters: {
     type: "object",
     properties: {
@@ -24,7 +37,7 @@ export const bashTool: Tool = {
     input: Record<string, unknown>,
     context: ToolContext
   ): Promise<ToolResult> {
-    const command = input.command as string;
+    const command = adaptCommand(input.command as string);
     const timeout = Math.min((input.timeout as number) || 120000, 600000);
 
     return new Promise((resolve) => {
@@ -32,6 +45,8 @@ export const bashTool: Tool = {
         cwd: context.cwd,
         timeout,
         maxBuffer: 1024 * 1024 * 10,
+        shell: pickShell(),
+        windowsHide: true,
         env: { ...process.env, FORCE_COLOR: "0" },
       });
 

@@ -3,6 +3,12 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, unlinkS
 import { join, resolve, basename } from "node:path";
 import { homedir, networkInterfaces } from "node:os";
 import { randomUUID, createHash } from "node:crypto";
+import fg from "fast-glob";
+import { isWindows, isMac, openUrl, osLabel } from "../utils/platform.js";
+
+const SHELL_OPTS = isWindows()
+  ? { shell: "powershell.exe" as const, windowsHide: true }
+  : { windowsHide: true };
 import { loadSettings, saveSettings, getConfigDir } from "../config/settings.js";
 import {
   loadPermissions,
@@ -133,16 +139,19 @@ cmd("copy", ["cp"], "Conversation", "Copy last assistant response to clipboard",
 
 cmd("diff", ["changes"], "Git", "Show uncommitted changes", (_args, ctx) => {
   return new Promise((res) => {
-    exec("git diff --stat && echo '---' && git diff", { cwd: ctx.cwd, maxBuffer: 1024 * 1024 }, (err, stdout) => {
+    exec("git diff --stat", { cwd: ctx.cwd, maxBuffer: 1024 * 1024, ...SHELL_OPTS }, (err, stat) => {
       if (err) return res({ output: "Not a git repository or git not available." });
-      res({ output: stdout.trim() || "No uncommitted changes." });
+      exec("git diff", { cwd: ctx.cwd, maxBuffer: 1024 * 1024, ...SHELL_OPTS }, (_e, body) => {
+        const out = `${stat.trim()}\n---\n${body.trim()}`.trim();
+        res({ output: out || "No uncommitted changes." });
+      });
     });
   });
 });
 
 cmd("status", ["st", "git-status"], "Git", "Show git status", (_args, ctx) => {
   return new Promise((res) => {
-    exec("git status --short", { cwd: ctx.cwd }, (err, stdout) => {
+    exec("git status --short", { cwd: ctx.cwd, ...SHELL_OPTS }, (err, stdout) => {
       if (err) return res({ output: "Not a git repository." });
       res({ output: stdout.trim() || "Working tree clean." });
     });
@@ -152,11 +161,11 @@ cmd("status", ["st", "git-status"], "Git", "Show git status", (_args, ctx) => {
 cmd("branch", ["br"], "Git", "Show or create a git branch", (args, ctx) => {
   return new Promise((res) => {
     if (args) {
-      exec(`git checkout -b ${args}`, { cwd: ctx.cwd }, (err, stdout, stderr) => {
+      exec(`git checkout -b ${args}`, { cwd: ctx.cwd, ...SHELL_OPTS }, (err, stdout, stderr) => {
         res({ output: err ? stderr.trim() : `Created and switched to branch: ${args}` });
       });
     } else {
-      exec("git branch -a --no-color", { cwd: ctx.cwd }, (err, stdout) => {
+      exec("git branch -a --no-color", { cwd: ctx.cwd, ...SHELL_OPTS }, (err, stdout) => {
         if (err) return res({ output: "Not a git repository." });
         res({ output: stdout.trim() });
       });
@@ -167,7 +176,7 @@ cmd("branch", ["br"], "Git", "Show or create a git branch", (args, ctx) => {
 cmd("log", ["gl"], "Git", "Show recent git log", (args, ctx) => {
   const count = parseInt(args) || 10;
   return new Promise((res) => {
-    exec(`git log --oneline --graph -${count}`, { cwd: ctx.cwd }, (err, stdout) => {
+    exec(`git log --oneline --graph -${count}`, { cwd: ctx.cwd, ...SHELL_OPTS }, (err, stdout) => {
       if (err) return res({ output: "Not a git repository." });
       res({ output: stdout.trim() });
     });
@@ -177,7 +186,7 @@ cmd("log", ["gl"], "Git", "Show recent git log", (args, ctx) => {
 cmd("stash", [], "Git", "Stash or pop changes", (args, ctx) => {
   const subcmd = args || "list";
   return new Promise((res) => {
-    exec(`git stash ${subcmd}`, { cwd: ctx.cwd }, (err, stdout, stderr) => {
+    exec(`git stash ${subcmd}`, { cwd: ctx.cwd, ...SHELL_OPTS }, (err, stdout, stderr) => {
       res({ output: (stdout || stderr || "Done.").trim() });
     });
   });
@@ -186,8 +195,12 @@ cmd("stash", [], "Git", "Stash or pop changes", (args, ctx) => {
 cmd("commit", ["ci"], "Git", "Create a git commit (AI generates message if none given)", (args, ctx) => {
   return new Promise((res) => {
     if (args) {
-      exec(`git add -A && git commit -m "${args.replace(/"/g, '\\"')}"`, { cwd: ctx.cwd }, (err, stdout, stderr) => {
-        res({ output: err ? (stderr || stdout).trim() : stdout.trim() });
+      exec(`git add -A`, { cwd: ctx.cwd, ...SHELL_OPTS }, (addErr, _addOut, addStderr) => {
+        if (addErr) return res({ output: addStderr.trim() || "git add failed" });
+        const safeMsg = args.replace(/"/g, '\\"');
+        exec(`git commit -m "${safeMsg}"`, { cwd: ctx.cwd, ...SHELL_OPTS }, (err, stdout, stderr) => {
+          res({ output: err ? (stderr || stdout).trim() : stdout.trim() });
+        });
       });
     } else {
       res({ output: "Provide a commit message: /commit <message>\nOr ask the AI to generate one." });
@@ -197,7 +210,7 @@ cmd("commit", ["ci"], "Git", "Create a git commit (AI generates message if none 
 
 cmd("push", [], "Git", "Push current branch to remote", (args, ctx) => {
   return new Promise((res) => {
-    exec(`git push ${args || ""}`, { cwd: ctx.cwd }, (err, stdout, stderr) => {
+    exec(`git push ${args || ""}`, { cwd: ctx.cwd, ...SHELL_OPTS }, (err, stdout, stderr) => {
       res({ output: (stdout || stderr || "Pushed.").trim() });
     });
   });
@@ -205,7 +218,7 @@ cmd("push", [], "Git", "Push current branch to remote", (args, ctx) => {
 
 cmd("pull", [], "Git", "Pull latest from remote", (args, ctx) => {
   return new Promise((res) => {
-    exec(`git pull ${args || ""}`, { cwd: ctx.cwd }, (err, stdout, stderr) => {
+    exec(`git pull ${args || ""}`, { cwd: ctx.cwd, ...SHELL_OPTS }, (err, stdout, stderr) => {
       res({ output: (stdout || stderr || "Up to date.").trim() });
     });
   });
@@ -213,8 +226,15 @@ cmd("pull", [], "Git", "Pull latest from remote", (args, ctx) => {
 
 cmd("pr", [], "Git", "Create a pull request (requires gh CLI)", (args, ctx) => {
   return new Promise((res) => {
-    exec(`gh pr create --fill ${args || ""}`, { cwd: ctx.cwd }, (err, stdout, stderr) => {
-      if (err) return res({ output: `PR creation failed. Install GitHub CLI: brew install gh\n${stderr}` });
+    exec(`gh pr create --fill ${args || ""}`, { cwd: ctx.cwd, ...SHELL_OPTS }, (err, stdout, stderr) => {
+      if (err) {
+        const installHint = isWindows()
+          ? "winget install GitHub.cli"
+          : isMac()
+          ? "brew install gh"
+          : "see https://cli.github.com";
+        return res({ output: `PR creation failed. Install GitHub CLI: ${installHint}\n${stderr}` });
+      }
       res({ output: stdout.trim() });
     });
   });
@@ -424,23 +444,30 @@ cmd("pwd", ["cwd", "where"], "Files", "Show current working directory", (_args, 
   return { output: ctx.cwd };
 });
 
-cmd("find", ["search"], "Files", "Quick file search by name", (args, ctx) => {
+cmd("find", ["search"], "Files", "Quick file search by name", async (args, ctx) => {
   if (!args) return { output: "Usage: /find <filename-pattern>" };
-  return new Promise((res) => {
-    exec(`find ${ctx.cwd} -name '${args}' -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null | head -30`, { timeout: 10000 }, (err, stdout) => {
-      res({ output: stdout.trim() || "No files found." });
+  try {
+    const matches = await fg(args.includes("/") ? args : `**/${args}`, {
+      cwd: ctx.cwd,
+      ignore: ["**/node_modules/**", "**/.git/**"],
+      onlyFiles: true,
+      dot: false,
+      followSymbolicLinks: false,
+      suppressErrors: true,
+      absolute: true,
     });
-  });
+    return { output: matches.slice(0, 30).join("\n") || "No files found." };
+  } catch (err: any) {
+    return { output: `Search failed: ${err.message}` };
+  }
 });
 
-cmd("grep", ["rg", "search-content"], "Files", "Search file contents", (args, ctx) => {
+cmd("grep", ["rg", "search-content"], "Files", "Search file contents", async (args, ctx) => {
   if (!args) return { output: "Usage: /grep <pattern>" };
-  return new Promise((res) => {
-    const cmd = `grep -rn --color=never --exclude-dir=node_modules --exclude-dir=.git '${args.replace(/'/g, "\\'")}' ${ctx.cwd} 2>/dev/null | head -30`;
-    exec(cmd, { timeout: 10000 }, (err, stdout) => {
-      res({ output: stdout.trim() || "No matches." });
-    });
-  });
+  const { grepTool } = await import("../tools/GrepTool/index.js");
+  const result = await grepTool.execute({ pattern: args }, { cwd: ctx.cwd });
+  const lines = result.output.split("\n").slice(0, 30).join("\n");
+  return { output: lines || "No matches." };
 });
 
 cmd("cat", ["read", "show"], "Files", "Read a file quickly", (args, ctx) => {
@@ -459,7 +486,7 @@ cmd("cat", ["read", "show"], "Files", "Read a file quickly", (args, ctx) => {
 cmd("run", ["exec", "shell", "!"], "Shell", "Run a shell command", (args, ctx) => {
   if (!args) return { output: "Usage: /run <command>" };
   return new Promise((res) => {
-    exec(args, { cwd: ctx.cwd, timeout: 30000, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+    exec(args, { cwd: ctx.cwd, timeout: 30000, maxBuffer: 1024 * 1024, ...SHELL_OPTS }, (err, stdout, stderr) => {
       const output = (stdout + (stderr ? `\n${stderr}` : "")).trim();
       res({ output: output || (err ? `Error: ${err.message}` : "(no output)") });
     });
@@ -470,7 +497,7 @@ cmd("npm", ["yarn", "pnpm", "bun"], "Shell", "Run a package manager command", (a
   const pm = "npm";
   const fullCmd = `${pm} ${args || "run"}`;
   return new Promise((res) => {
-    exec(fullCmd, { cwd: ctx.cwd, timeout: 60000 }, (err, stdout, stderr) => {
+    exec(fullCmd, { cwd: ctx.cwd, timeout: 60000, ...SHELL_OPTS }, (err, stdout, stderr) => {
       res({ output: (stdout + stderr).trim() || "Done." });
     });
   });
@@ -479,7 +506,7 @@ cmd("npm", ["yarn", "pnpm", "bun"], "Shell", "Run a package manager command", (a
 cmd("test", [], "Dev", "Run project tests", (args, ctx) => {
   return new Promise((res) => {
     const cmd = args || "npm test";
-    exec(cmd, { cwd: ctx.cwd, timeout: 120000 }, (err, stdout, stderr) => {
+    exec(cmd, { cwd: ctx.cwd, timeout: 120000, ...SHELL_OPTS }, (err, stdout, stderr) => {
       res({ output: (stdout + stderr).trim() || "Tests completed." });
     });
   });
@@ -488,7 +515,7 @@ cmd("test", [], "Dev", "Run project tests", (args, ctx) => {
 cmd("lint", [], "Dev", "Run linter", (args, ctx) => {
   return new Promise((res) => {
     const cmd = args || "npm run lint";
-    exec(cmd, { cwd: ctx.cwd, timeout: 60000 }, (err, stdout, stderr) => {
+    exec(cmd, { cwd: ctx.cwd, timeout: 60000, ...SHELL_OPTS }, (err, stdout, stderr) => {
       res({ output: (stdout + stderr).trim() || "Lint completed." });
     });
   });
@@ -497,7 +524,7 @@ cmd("lint", [], "Dev", "Run linter", (args, ctx) => {
 cmd("build", [], "Dev", "Run build command", (args, ctx) => {
   return new Promise((res) => {
     const cmd = args || "npm run build";
-    exec(cmd, { cwd: ctx.cwd, timeout: 120000 }, (err, stdout, stderr) => {
+    exec(cmd, { cwd: ctx.cwd, timeout: 120000, ...SHELL_OPTS }, (err, stdout, stderr) => {
       res({ output: (stdout + stderr).trim() || "Build completed." });
     });
   });
@@ -534,11 +561,12 @@ cmd("doctor", ["diagnose", "health"], "Info", "Check system health and dependenc
 
     const check = (name: string, cmd: string): Promise<string> =>
       new Promise((r) => {
-        exec(cmd, { timeout: 5000 }, (err, stdout) => {
+        exec(cmd, { timeout: 5000, ...SHELL_OPTS }, (err, stdout) => {
           r(err ? `  ✗ ${name}: not found` : `  ✓ ${name}: ${stdout.trim().split("\n")[0]}`);
         });
       });
 
+    checks.push(`  ✓ OS: ${osLabel()}`);
     checks.push(await check("Node", "node --version"));
     checks.push(await check("npm", "npm --version"));
     checks.push(await check("git", "git --version"));
@@ -624,7 +652,7 @@ cmd("plan", [], "Workflow", "Enable plan mode — AI outlines before executing",
 
 cmd("undo", ["revert"], "Workflow", "Undo the last file change", (_args, ctx) => {
   return new Promise((res) => {
-    exec("git checkout -- .", { cwd: ctx.cwd }, (err) => {
+    exec("git checkout -- .", { cwd: ctx.cwd, ...SHELL_OPTS }, (err) => {
       res({ output: err ? "Undo failed — not a git repo or no changes to revert." : "Reverted all uncommitted file changes." });
     });
   });
@@ -701,23 +729,32 @@ cmd("ip", [], "Utility", "Show local IP address", () => {
 cmd("port", ["ports"], "Utility", "Check if a port is in use", (args) => {
   if (!args) return { output: "Usage: /port <number>" };
   return new Promise((res) => {
-    exec(`lsof -i :${args} 2>/dev/null | head -5`, (err, stdout) => {
+    const command = isWindows()
+      ? `netstat -ano | findstr :${args}`
+      : `lsof -i :${args} 2>/dev/null | head -5`;
+    exec(command, { ...SHELL_OPTS }, (_err, stdout) => {
       res({ output: stdout.trim() || `Port ${args} is free.` });
     });
   });
 });
 
 cmd("processes", ["ps", "top"], "Utility", "Show running processes", () => {
+  const command = isWindows()
+    ? `powershell -NoProfile -Command "Get-Process | Sort-Object -Property WS -Descending | Select-Object -First 15 | Format-Table -AutoSize"`
+    : "ps aux | head -15";
   return new Promise((res) => {
-    exec("ps aux --sort=-%mem 2>/dev/null | head -15 || ps aux | head -15", (err, stdout) => {
+    exec(command, { ...SHELL_OPTS }, (_err, stdout) => {
       res({ output: stdout.trim() || "Cannot read processes." });
     });
   });
 });
 
 cmd("disk", ["df"], "Utility", "Show disk usage", () => {
+  const command = isWindows()
+    ? `powershell -NoProfile -Command "Get-PSDrive -PSProvider FileSystem | Format-Table -AutoSize"`
+    : "df -h /";
   return new Promise((res) => {
-    exec("df -h / | tail -1", (err, stdout) => {
+    exec(command, { ...SHELL_OPTS }, (_err, stdout) => {
       res({ output: `Disk usage:\n${stdout.trim()}` });
     });
   });
@@ -761,26 +798,43 @@ cmd("benchmark", ["bench", "perf"], "Dev", "Run a quick benchmark", (args, ctx) 
   if (!args) return { output: "Usage: /benchmark <command>" };
   return new Promise((res) => {
     const start = Date.now();
-    exec(args, { cwd: ctx.cwd, timeout: 30000 }, (err, stdout) => {
+    exec(args, { cwd: ctx.cwd, timeout: 30000, ...SHELL_OPTS }, (err, stdout) => {
       const elapsed = Date.now() - start;
       res({ output: `Completed in ${elapsed}ms\n${(stdout || "").trim()}` });
     });
   });
 });
 
-cmd("size", ["wc"], "Files", "Count lines in files matching a pattern", (args, ctx) => {
+cmd("size", ["wc"], "Files", "Count lines in files matching a pattern", async (args, ctx) => {
   if (!args) return { output: "Usage: /size <glob-pattern>  e.g. /size *.ts" };
-  return new Promise((res) => {
-    exec(`find ${ctx.cwd} -name '${args}' -not -path '*/node_modules/*' -exec wc -l {} + 2>/dev/null | tail -1`, { timeout: 10000 }, (err, stdout) => {
-      res({ output: stdout.trim() || "No files matched." });
+  try {
+    const matches = await fg(args.includes("/") ? args : `**/${args}`, {
+      cwd: ctx.cwd,
+      ignore: ["**/node_modules/**", "**/.git/**", "**/dist/**"],
+      onlyFiles: true,
+      absolute: true,
+      followSymbolicLinks: false,
+      suppressErrors: true,
     });
-  });
+    let total = 0;
+    let counted = 0;
+    for (const file of matches) {
+      try {
+        const text = readFileSync(file, "utf-8");
+        total += text.split("\n").length;
+        counted++;
+      } catch {}
+    }
+    return { output: counted ? `${counted} files, ${total} lines total` : "No files matched." };
+  } catch (err: any) {
+    return { output: `Failed: ${err.message}` };
+  }
 });
 
 cmd("deps", ["dependencies", "outdated"], "Dev", "Check dependency status", (args, ctx) => {
   return new Promise((res) => {
     const cmd = args === "outdated" ? "npm outdated" : "npm ls --depth=0";
-    exec(cmd, { cwd: ctx.cwd, timeout: 30000 }, (err, stdout, stderr) => {
+    exec(cmd, { cwd: ctx.cwd, timeout: 30000, ...SHELL_OPTS }, (err, stdout, stderr) => {
       res({ output: (stdout || stderr).trim() || "No dependencies info." });
     });
   });
@@ -788,11 +842,12 @@ cmd("deps", ["dependencies", "outdated"], "Dev", "Check dependency status", (arg
 
 cmd("open", ["o"], "Utility", "Open a file or URL in default app", (args) => {
   if (!args) return { output: "Usage: /open <file-or-url>" };
-  return new Promise((res) => {
-    exec(`open ${args}`, (err) => {
-      res({ output: err ? `Cannot open: ${args}` : `Opened: ${args}` });
-    });
-  });
+  try {
+    openUrl(args);
+    return { output: `Opened: ${args}` };
+  } catch {
+    return { output: `Cannot open: ${args}` };
+  }
 });
 
 cmd("reddit", [], "Social", "Post to Reddit", (args) => {
@@ -818,7 +873,6 @@ cmd("setup-x", ["connect-x", "setup-twitter", "connect-twitter"], "Social", "Con
 });
 
 cmd("debug", ["diag", "network"], "Dev", "Debug mode — test network, show request info", async (_args, ctx) => {
-  const { exec } = await import("node:child_process");
   const { loadSettings } = await import("../config/settings.js");
   const { getProvider } = await import("../providers/index.js");
 
@@ -852,22 +906,25 @@ cmd("debug", ["diag", "network"], "Dev", "Debug mode — test network, show requ
 
   output += "Network Check\n\n";
 
-  const ping = (h: string): Promise<string> => new Promise((resolve) => {
-    exec(`curl -s -o /dev/null -w "%{http_code} %{time_total}s" --connect-timeout 5 https://${h}/ 2>&1`, { timeout: 8000 }, (err, stdout) => {
-      if (err || !stdout.trim()) resolve(`  ${h}: \x1b[31m✗ unreachable\x1b[0m`);
-      else {
-        const parts = stdout.trim().split(" ");
-        resolve(`  ${h}: \x1b[32m✓\x1b[0m ${parts[0]} (${parts[1] || "?"})`);
-      }
-    });
-  });
+  const ping = async (h: string): Promise<string> => {
+    const start = Date.now();
+    try {
+      const r = await fetch(`https://${h}/`, { signal: AbortSignal.timeout(5000) });
+      const elapsed = ((Date.now() - start) / 1000).toFixed(2);
+      return `  ${h}: \x1b[32m✓\x1b[0m ${r.status} (${elapsed}s)`;
+    } catch {
+      return `  ${h}: \x1b[31m✗ unreachable\x1b[0m`;
+    }
+  };
 
   if (host === "localhost") {
-    const ollamaCheck = await new Promise<string>((resolve) => {
-      exec("curl -s http://localhost:11434/api/tags", { timeout: 3000 }, (err) => {
-        resolve(err ? "  localhost:11434: \x1b[31m✗ Ollama not running\x1b[0m" : "  localhost:11434: \x1b[32m✓ Ollama running\x1b[0m");
-      });
-    });
+    let ollamaCheck: string;
+    try {
+      await fetch("http://localhost:11434/api/tags", { signal: AbortSignal.timeout(3000) });
+      ollamaCheck = "  localhost:11434: \x1b[32m✓ Ollama running\x1b[0m";
+    } catch {
+      ollamaCheck = "  localhost:11434: \x1b[31m✗ Ollama not running\x1b[0m";
+    }
     output += ollamaCheck + "\n";
   } else {
     output += await ping(host) + "\n";
@@ -914,9 +971,9 @@ cmd("autofix", ["fix-loop"], "Dev", "Run a command, read errors, fix them, repea
 
 cmd("smartcommit", ["sc", "ai-commit"], "Git", "Generate a commit message from the current diff", (_args, ctx) => {
   return new Promise((res) => {
-    exec("git diff --cached --stat", { cwd: ctx.cwd }, (err, stdout) => {
+    exec("git diff --cached --stat", { cwd: ctx.cwd, ...SHELL_OPTS }, (err, stdout) => {
       if (err || !stdout.trim()) {
-        exec("git diff --stat", { cwd: ctx.cwd }, (err2, stdout2) => {
+        exec("git diff --stat", { cwd: ctx.cwd, ...SHELL_OPTS }, (err2, stdout2) => {
           if (!stdout2?.trim()) return res({ output: "No changes to commit." });
           res({ output: `Ask the AI: "Look at the git diff and generate a commit message, then commit it."` });
         });
@@ -979,8 +1036,8 @@ cmd("export", ["save-chat"], "Session", "Export conversation to markdown file", 
 
 cmd("clipboard", ["paste", "cb"], "Utility", "Paste clipboard contents as context", async () => {
   try {
-    const { execSync } = await import("node:child_process");
-    const content = execSync("pbpaste", { encoding: "utf-8", timeout: 5000 });
+    const clip = await import("clipboardy");
+    const content = (await clip.default.read()) || "";
     if (!content.trim()) return { output: "Clipboard is empty." };
     return { output: `Clipboard (${content.length} chars):\n${content.slice(0, 2000)}${content.length > 2000 ? "\n... truncated" : ""}` };
   } catch {
@@ -1008,7 +1065,7 @@ cmd("review", ["code-review", "cr"], "Git", "Review current changes or a PR", (a
     return { output: `Ask the AI: "Review pull request ${args} and give feedback."` };
   }
   return new Promise((res) => {
-    exec("git diff --stat", { cwd: ctx.cwd }, (err, stdout) => {
+    exec("git diff --stat", { cwd: ctx.cwd, ...SHELL_OPTS }, (err, stdout) => {
       if (!stdout?.trim()) return res({ output: "No changes to review." });
       res({ output: `Changes to review:\n${stdout.trim()}\n\nAsk the AI: "Review my uncommitted changes and give feedback."` });
     });
@@ -1027,7 +1084,7 @@ cmd("explain", [], "Dev", "Ask the AI to explain code", (args) => {
 
 cmd("security", ["audit-security"], "Dev", "Security audit of current changes", (_args, ctx) => {
   return new Promise((res) => {
-    exec("git diff", { cwd: ctx.cwd, maxBuffer: 1024 * 1024 }, (err, stdout) => {
+    exec("git diff", { cwd: ctx.cwd, maxBuffer: 1024 * 1024, ...SHELL_OPTS }, (err, stdout) => {
       if (!stdout?.trim()) return res({ output: "No changes to audit." });
       res({ output: `Ask the AI: "Security review my uncommitted changes — look for vulnerabilities, injection risks, exposed secrets, and OWASP top 10 issues."` });
     });

@@ -130,6 +130,7 @@ async function* streamRequest(
   const modelAlias = getModelAlias(options.model);
 
   const { spawn } = await import("node:child_process");
+  const { isWindows } = await import("../utils/platform.js");
 
   const child = spawn("claude", [
     "-p", prompt,
@@ -141,6 +142,8 @@ async function* streamRequest(
   ], {
     cwd: process.cwd(),
     stdio: ["ignore", "pipe", "ignore"],
+    shell: isWindows(),
+    windowsHide: true,
   });
 
   let totalInputTokens = 0;
@@ -351,7 +354,7 @@ async function completeRequest(
 async function validateApiKey(): Promise<boolean> {
   const { exec } = await import("node:child_process");
   return new Promise((resolve) => {
-    exec("claude --version", { timeout: 5000 }, (err) => resolve(!err));
+    exec("claude --version", { timeout: 5000, windowsHide: true }, (err) => resolve(!err));
   });
 }
 

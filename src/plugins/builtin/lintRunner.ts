@@ -1,8 +1,13 @@
 import { exec } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { isWindows } from "../../utils/platform.js";
 import type { Plugin } from "../index.js";
 import type { Tool } from "../../tools/types.js";
+
+const SHELL_OPTS = isWindows()
+  ? { shell: "powershell.exe" as const, windowsHide: true }
+  : { windowsHide: true };
 
 function detectLinter(cwd: string): { cmd: string; reason: string } | null {
   const pkgPath = join(cwd, "package.json");
@@ -43,7 +48,7 @@ const lintRunTool: Tool = {
     const path = (input.path as string) || "";
     const fullCmd = path ? `${detected.cmd} ${path}` : detected.cmd;
     return new Promise((resolve) => {
-      exec(fullCmd, { cwd: ctx.cwd, timeout: 60000, maxBuffer: 5 * 1024 * 1024 }, (err, stdout, stderr) => {
+      exec(fullCmd, { cwd: ctx.cwd, timeout: 60000, maxBuffer: 5 * 1024 * 1024, ...SHELL_OPTS }, (err, stdout, stderr) => {
         const out = (stdout + stderr).trim();
         const head = `Linter: ${detected.cmd} (${detected.reason})\n\n`;
         if (err && !out) return resolve({ output: "", error: `Lint failed: ${err.message}` });

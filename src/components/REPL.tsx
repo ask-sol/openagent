@@ -276,10 +276,16 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
         ]);
         setIsProcessing(true);
         const { spawn: spawnCmd } = await import("node:child_process");
+        const { isWindows } = await import("../utils/platform.js");
         const parts = trimmed.match(/(?:[^\s"]+|"[^"]*")+/g) || [trimmed];
         const cmd = parts[0];
         const args = parts.slice(1).map((a: string) => a.replace(/^"|"$/g, ""));
-        const proc = spawnCmd(cmd, args, { cwd: process.cwd(), stdio: ["ignore", "pipe", "pipe"], shell: true });
+        const proc = spawnCmd(cmd, args, {
+          cwd: process.cwd(),
+          stdio: ["ignore", "pipe", "pipe"],
+          shell: isWindows() ? "powershell.exe" : true,
+          windowsHide: true,
+        });
         let output = "";
         proc.stdout?.on("data", (d: Buffer) => { output += d.toString(); });
         proc.stderr?.on("data", (d: Buffer) => { output += d.toString(); });

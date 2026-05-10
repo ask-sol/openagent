@@ -1,6 +1,8 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { homedir } from "node:os";
 import { getConfigDir } from "../config/settings.js";
+import { detectInstallMethod, isWindows } from "./platform.js";
 
 const CURRENT_VERSION = "0.1.59-20260426";
 const CHECK_INTERVAL = 1000 * 60 * 60 * 4;
@@ -94,9 +96,15 @@ export async function runUpgrade(): Promise<void> {
   const progress = new LiveProgress("Upgrading OpenAgent");
   progress.start();
 
+  const shellCmd = isWindows() ? "powershell.exe" : "/bin/bash";
+  const shellArgs = isWindows() ? ["-NoProfile", "-Command"] : ["-c"];
+
   const runPiped = (cmd: string, timeoutMs: number, onChunk: (chunk: string) => void) =>
     new Promise<number>((resolve) => {
-      const child = spawn("/bin/bash", ["-c", cmd], { stdio: ["ignore", "pipe", "pipe"] });
+      const child = spawn(shellCmd, [...shellArgs, cmd], {
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      });
       const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
       const handleData = (d: Buffer) => onChunk(d.toString());
       child.stdout?.on("data", handleData);
@@ -111,15 +119,23 @@ export async function runUpgrade(): Promise<void> {
       });
     });
 
-  try {
+  const detail = (chunk: string) => {
+    const line = chunk.trim().split("\n").pop() || "";
+    if (line) progress.update({ detail: line.slice(0, 80) });
+  };
+
+  const manualPath = join(homedir(), ".openagent", "app");
+  const manualCmd = isWindows()
+    ? `cd '${manualPath}'; git pull; npm install`
+    : "cd ~/.openagent/app && git pull && npm install 2>&1";
+  const npmCmd = "npm install -g openagent@latest";
+
+  const tryBrew = async () => {
     progress.update({ percent: 2, phase: "Refreshing tap", detail: "" });
     const tapCode = await runPiped(
       "cd $(brew --repository)/Library/Taps/ask-sol/homebrew-openagent && git pull 2>&1",
       30000,
-      (chunk) => {
-        const line = chunk.trim().split("\n").pop() || "";
-        if (line) progress.update({ detail: line.slice(0, 80) });
-      },
+      detail,
     );
     if (tapCode !== 0) throw new Error("tap refresh failed");
 
@@ -138,24 +154,54 @@ export async function runUpgrade(): Promise<void> {
       },
     );
     if (brewCode !== 0) throw new Error("brew reinstall failed");
+  };
 
-    progress.finish("OpenAgent upgraded successfully.");
-  } catch {
-    progress.update({ percent: 60, phase: "Falling back to git pull", detail: "" });
+  const tryNpm = async () => {
+    progress.update({ percent: 30, phase: "Updating via npm", detail: "" });
+    const code = await runPiped(npmCmd, 180000, detail);
+    if (code !== 0) throw new Error("npm install -g failed");
+  };
+
+  const tryManual = async () => {
+    if (!existsSync(manualPath)) throw new Error("manual install not present");
+    progress.update({ percent: 60, phase: "Updating from source", detail: "" });
+    const code = await runPiped(manualCmd, 180000, detail);
+    if (code !== 0) throw new Error("manual update failed");
+  };
+
+  const method = detectInstallMethod();
+  const attempts: Array<{ name: string; fn: () => Promise<void> }> = [];
+
+  if (method === "brew" && !isWindows()) {
+    attempts.push({ name: "brew", fn: tryBrew });
+    attempts.push({ name: "npm", fn: tryNpm });
+    attempts.push({ name: "manual", fn: tryManual });
+  } else if (method === "npm-global") {
+    attempts.push({ name: "npm", fn: tryNpm });
+    attempts.push({ name: "manual", fn: tryManual });
+  } else if (method === "manual") {
+    attempts.push({ name: "manual", fn: tryManual });
+    attempts.push({ name: "npm", fn: tryNpm });
+  } else {
+    if (!isWindows()) attempts.push({ name: "brew", fn: tryBrew });
+    attempts.push({ name: "npm", fn: tryNpm });
+    attempts.push({ name: "manual", fn: tryManual });
+  }
+
+  for (const a of attempts) {
     try {
-      const fallbackCode = await runPiped(
-        "cd ~/.openagent/app && git pull && npm install 2>&1",
-        180000,
-        (chunk) => {
-          const line = chunk.trim().split("\n").pop() || "";
-          if (line) progress.update({ detail: line.slice(0, 80) });
-        },
-      );
-      if (fallbackCode !== 0) throw new Error("fallback failed");
-      progress.finish("OpenAgent updated from source.");
+      await a.fn();
+      progress.finish(`OpenAgent upgraded successfully (${a.name}).`);
+      return;
     } catch {
-      progress.fail("Update failed. Try: brew reinstall openagent");
-      process.exit(1);
+      // try next
     }
   }
+
+  progress.fail(
+    isWindows()
+      ? "Update failed. Try: npm install -g openagent@latest"
+      : "Update failed. Try: brew reinstall openagent",
+  );
+  process.exit(1);
 }
