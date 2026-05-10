@@ -44,9 +44,15 @@ function compressCachePaths(s: string): string {
 
 export function filterStreamText(input: string): string {
   let s = input;
-  for (const re of NOISE_PATTERNS) s = s.replace(re, "");
+  // Replace noise with a single space so adjacent prose doesn't slam together
+  // ("the files" + "<persisted-output>...</persisted-output>" + "files added"
+  //  used to render as "the filesfiles added").
+  for (const re of NOISE_PATTERNS) s = s.replace(re, " ");
   s = shortenHome(s);
   s = compressCachePaths(s);
+
+  // Collapse multiple spaces inside a line, but preserve line breaks
+  s = s.replace(/[ \t]{2,}/g, " ");
   // Collapse runs of 3+ blank lines to 2
   s = s.replace(/\n{3,}/g, "\n\n");
   return s;

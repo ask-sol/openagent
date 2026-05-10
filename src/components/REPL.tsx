@@ -76,6 +76,7 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
   const streamThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messageCountRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  const todoFadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [queuedMessages, setQueuedMessages] = useState<string[]>([]);
   const [expandedView, setExpandedView] = useState(false);
   const [terminalMode, setTerminalMode] = useState(false);
@@ -268,6 +269,12 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
       historyIdxRef.current = -1;
       draftInputRef.current = "";
       setInput("");
+
+      if (todoFadeTimerRef.current) {
+        clearTimeout(todoFadeTimerRef.current);
+        todoFadeTimerRef.current = null;
+      }
+      clearTodos();
 
       if (terminalMode) {
         setDisplayMessages((prev) => [
@@ -615,6 +622,14 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
       abortRef.current = null;
       startTimeRef.current = 0;
       setIsProcessing(false);
+
+      if (todoFadeTimerRef.current) {
+        clearTimeout(todoFadeTimerRef.current);
+      }
+      todoFadeTimerRef.current = setTimeout(() => {
+        clearTodos();
+        todoFadeTimerRef.current = null;
+      }, 30000);
 
       setQueuedMessages((prev) => {
         if (prev.length > 0) {
