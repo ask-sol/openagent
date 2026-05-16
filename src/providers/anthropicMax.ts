@@ -132,19 +132,47 @@ async function* streamRequest(
   const { spawn } = await import("node:child_process");
   const { isWindows } = await import("../utils/platform.js");
 
-  const child = spawn("claude", [
+  const claudeArgs = [
     "-p", prompt,
     "--model", modelAlias,
     "--output-format", "stream-json",
     "--verbose",
     "--dangerously-skip-permissions",
     "--no-session-persistence",
-  ], {
-    cwd: process.cwd(),
-    stdio: ["ignore", "pipe", "ignore"],
-    shell: isWindows(),
-    windowsHide: true,
+  ];
+
+  // On Windows the `claude` CLI is a `.cmd` shim, which Node refuses to spawn
+  // without a shell. Passing an args array together with `shell: true` triggers
+  // Node's DEP0190 deprecation warning (args are concatenated unescaped). Build
+  // an escaped command line and spawn it as a single string so no args array is
+  // passed alongside `shell: true`.
+  const quote = (a: string) =>
+    isWindows()
+      ? '"' + a.replace(/"/g, '""') + '"'
+      : "'" + a.replace(/'/g, "'\\''") + "'";
+  const fullCommand = ["claude", ...claudeArgs.map(quote)].join(" ");
+
+  const child = isWindows()
+    ? spawn(fullCommand, {
+        cwd: process.cwd(),
+        stdio: ["ignore", "pipe", "pipe"],
+        shell: true,
+        windowsHide: true,
+      })
+    : spawn("claude", claudeArgs, {
+        cwd: process.cwd(),
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      });
+
+  let stderrBuf = "";
+  child.stderr?.on("data", (data: Buffer) => {
+    stderrBuf += data.toString();
+    if (stderrBuf.length > 8192) stderrBuf = stderrBuf.slice(-8192);
   });
+
+  let spawnError: Error | null = null;
+  child.on("error", (err) => { spawnError = err as Error; });
 
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
@@ -179,7 +207,9 @@ async function* streamRequest(
     }
   });
 
-  child.on("close", () => {
+  let exitCode: number | null = null;
+  child.on("close", (code) => {
+    exitCode = code;
     finished = true;
     if (resolveNext) { resolveNext(); resolveNext = null; }
   });
@@ -188,7 +218,25 @@ async function* streamRequest(
     while (events.length === 0 && !finished) {
       await new Promise<void>((r) => { resolveNext = r; });
     }
-    if (events.length === 0 && finished) break;
+    if (events.length === 0 && finished) {
+      const sawAssistantOutput = lastEmittedOutput > 0 || lastEmittedInput > 0;
+      if (!sawAssistantOutput) {
+        const trimmed = stderrBuf.trim();
+        const reason = spawnError
+          ? `Failed to launch 'claude': ${spawnError.message}`
+          : exitCode !== 0
+            ? `'claude' exited with code ${exitCode}.`
+            : "No output from 'claude'.";
+        const hint =
+          (spawnError && (spawnError as any).code === "ENOENT") ||
+          /not recognized|not found|command not found/i.test(trimmed)
+            ? "\nThe Claude CLI doesn't appear to be installed. Install Claude Code first: https://docs.anthropic.com/en/docs/claude-code/setup"
+            : "";
+        const detail = trimmed ? `\n\n${trimmed}` : "";
+        yield { type: "text", text: `\n[anthropic-max] ${reason}${hint}${detail}\n` };
+      }
+      break;
+    }
 
     const event = events.shift()!;
 

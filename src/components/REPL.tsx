@@ -284,10 +284,10 @@ export function REPL({ settings: initialSettings, thinkingEnabled: initialThinki
         setIsProcessing(true);
         const { spawn: spawnCmd } = await import("node:child_process");
         const { isWindows } = await import("../utils/platform.js");
-        const parts = trimmed.match(/(?:[^\s"]+|"[^"]*")+/g) || [trimmed];
-        const cmd = parts[0];
-        const args = parts.slice(1).map((a: string) => a.replace(/^"|"$/g, ""));
-        const proc = spawnCmd(cmd, args, {
+        // Pass the full command line as a single string with no args array —
+        // shell:true + args[] triggers Node's DEP0190 warning. The shell parses
+        // the command itself, so no manual splitting is needed.
+        const proc = spawnCmd(trimmed, {
           cwd: process.cwd(),
           stdio: ["ignore", "pipe", "pipe"],
           shell: isWindows() ? "powershell.exe" : true,
