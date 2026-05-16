@@ -30,10 +30,59 @@ program
   .option("-c, --cautious", "Run in cautious mode (prompt before every tool)")
   .option("-t, --think", "Enable thinking/reasoning mode")
   .option("--upgrade", "Upgrade OpenAgent to the latest version")
+  .option("--prompt <text>", "Headless one-shot mode: run a single prompt and exit. Used by Wyrd's Re-execute feature.")
   .action(async (options) => {
     if (options.upgrade) {
       await runUpgrade();
       return;
+    }
+
+    // Headless one-shot mode (for Wyrd Re-execute, scripting, etc.). Runs a
+    // single query loop against the configured provider with no TUI, streams
+    // output to stdout, exits when done. WYRD_ENABLED is honored as usual.
+    if (typeof options.prompt === "string" && options.prompt.length > 0) {
+      if (options.provider || options.model || options.mode) {
+        const s = loadSettings();
+        if (options.provider) s.provider = options.provider;
+        if (options.model) s.model = options.model;
+        if (options.mode) s.responseMode = options.mode;
+        saveSettings(s);
+      }
+      const settings = loadSettings();
+      const { getProvider } = await import("../providers/index.js");
+      const { runQueryLoop } = await import("../query.js");
+      const { createSession } = await import("../session/history.js");
+      const provider = getProvider(settings.provider);
+      if (!provider) {
+        process.stderr.write(`error: provider "${settings.provider}" not configured. Run \`openagent --setup\` first.\n`);
+        process.exit(1);
+      }
+      const sessionMeta = createSession(process.cwd(), settings.provider, settings.model);
+      const sessionId = sessionMeta.id;
+      const messages = [{ role: "user" as const, content: options.prompt }];
+      const aborter = new AbortController();
+      process.on("SIGINT", () => aborter.abort());
+      const callbacks = {
+        onText: (t: string) => process.stdout.write(t),
+        onToolStart: (name: string) => process.stderr.write(`\n[tool:start] ${name}\n`),
+        onToolEnd: (name: string, _id: string, _result: string, err?: string) => {
+          process.stderr.write(`[tool:end] ${name}${err ? ` error=${err}` : ""}\n`);
+        },
+        onToolPermission: async () => true, // headless: auto-allow. Caller scopes via --unrestricted policy.
+        onDone: (usage: { inputTokens: number; outputTokens: number }) => {
+          process.stderr.write(
+            `\n[done] ${usage.inputTokens}↓ ${usage.outputTokens}↑\n`,
+          );
+        },
+        onError: (e: string) => process.stderr.write(`\n[error] ${e}\n`),
+      };
+      try {
+        await runQueryLoop(provider, messages, sessionId, callbacks, options.think ?? false, aborter.signal);
+        process.exit(0);
+      } catch (err) {
+        process.stderr.write(`\n[fatal] ${err instanceof Error ? err.message : String(err)}\n`);
+        process.exit(2);
+      }
     }
 
     if (options.sessions) {

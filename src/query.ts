@@ -1,6 +1,7 @@
 import type { Provider, ProviderMessage, StreamChunk, ProviderToolCall, TokenUsage } from "./providers/types.js";
 import { getTool, getToolsForProvider } from "./tools/index.js";
-import type { ToolContext } from "./tools/types.js";
+import type { Tool, ToolContext } from "./tools/types.js";
+import { createWyrdSessionIfEnabled } from "./services/wyrd.js";
 import { buildSystemPrompt } from "./utils/systemPrompt.js";
 import { loadSettings } from "./config/settings.js";
 import { shouldPrompt, isDenied, getEffectiveMode } from "./config/permissions.js";
@@ -100,6 +101,20 @@ export async function runQueryLoop(
   let loopCount = 0;
   const maxLoops = 50;
 
+  const wyrd = await createWyrdSessionIfEnabled({
+    agent_id: "openagent",
+    agent_version: process.env.npm_package_version ?? "unknown",
+  });
+  const tracedProvider = wyrd.wrapProvider(provider);
+  const tracedGetTool: (name: string) => Tool | undefined = wyrd.wrapToolLookup(getTool);
+
+  try {
+    return await wyrd.run("user-prompt", async () => runWhileLoop());
+  } finally {
+    await wyrd.close();
+  }
+
+  async function runWhileLoop(): Promise<{ messages: ProviderMessage[]; totalUsage: TokenUsage }> {
   while (loopCount < maxLoops) {
     if (abortSignal?.aborted) {
       callbacks.onError("Interrupted.");
@@ -114,7 +129,7 @@ export async function runQueryLoop(
     try {
       let apiKey = settings.apiKey;
 
-      const stream = provider.stream(messages, tools, {
+      const stream = tracedProvider.stream(messages, tools, {
         model: settings.model,
         apiKey,
         baseUrl: settings.baseUrl,
@@ -225,7 +240,7 @@ export async function runQueryLoop(
 
     const toolResults = await Promise.all(
       pendingToolCalls.map(async (tc) => {
-        const tool = getTool(tc.name);
+        const tool = tracedGetTool(tc.name);
         if (!tool) {
           return {
             id: tc.id,
@@ -301,6 +316,7 @@ export async function runQueryLoop(
   }
 
   return { messages, totalUsage };
+  }
 }
 
 export { describeToolCall };

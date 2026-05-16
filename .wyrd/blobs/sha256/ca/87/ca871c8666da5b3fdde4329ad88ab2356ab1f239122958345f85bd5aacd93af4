@@ -1,0 +1,1 @@
+{"messages":[{"content":"hi","role":"user"}],"model":"claude-opus-4-7","params":{"max_tokens":null,"system":null,"temperature":null,"top_p":null},"provider":"anthropic","tools":[]}

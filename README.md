@@ -88,12 +88,21 @@ brew install ask-sol/openagent/openagent
 curl -fsSL https://raw.githubusercontent.com/ask-sol/openagent/main/scripts/install-remote.sh | bash
 ```
 
+**Windows 10 / 11** (paste into `cmd.exe` or PowerShell):
+
+```cmd
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/ask-sol/openagent/main/scripts/install-remote.ps1 | iex"
+```
+
+The installer auto-installs Git and Node.js LTS via `winget` (or `choco` if present), clones the repo to `%USERPROFILE%\.openagent\app`, drops an `openagent.cmd` shim into `%USERPROFILE%\.openagent\bin`, and adds it to your user PATH. Open a new terminal afterwards so PATH refreshes, then run `openagent`. See [Windows notes](#windows-notes) below.
+
 **From source** (any platform):
 
 ```bash
 git clone https://github.com/ask-sol/openagent.git
 cd openagent
-bash scripts/install-user.sh
+bash scripts/install-user.sh       # macOS / Linux / WSL
+powershell -ExecutionPolicy Bypass -File scripts\install-user.ps1   # Windows
 ```
 
 **Update**:
@@ -291,7 +300,17 @@ Aider is great and also Apache 2.0. OpenAgent has more provider integrations, a 
 Yes, with first-class support. Three runtimes are supported: Ollama, LM Studio, and Apple's MLX framework. The setup wizard installs whichever you pick and downloads your first model.
 
 ### Does OpenAgent work on Windows?
-Linux/WSL works. Native Windows is on the roadmap.
+Yes — Windows 10 and 11 are supported natively. Paste the one-liner from the [Install](#install) section into `cmd.exe` or PowerShell. The installer pulls Git and Node.js LTS via `winget` if they're missing, installs OpenAgent under `%USERPROFILE%\.openagent\`, and adds an `openagent.cmd` shim to your user PATH. WSL also works via the Linux installer.
+
+<a id="windows-notes"></a>
+
+### Windows notes
+
+- **Where things land:** `%USERPROFILE%\.openagent\app` (source + node_modules), `%USERPROFILE%\.openagent\bin\openagent.cmd` (the PATH shim).
+- **Open a new terminal after install** so the updated user PATH is visible. Then `openagent` works from any directory.
+- **Execution policy:** the one-liner uses `-ExecutionPolicy Bypass` for that single invocation only; your system policy is not changed.
+- **Prerequisites the installer handles:** Git, Node.js 20 LTS (via `winget` or `choco`).
+- **Uninstall:** `rmdir /s /q %USERPROFILE%\.openagent` and remove the `bin` entry from your user PATH.
 
 ### Does OpenAgent send my code anywhere?
 Only to whichever AI provider you've configured. No telemetry, no analytics, no third-party calls. API keys and OAuth tokens are stored in `~/.openagent/` with user-only permissions.

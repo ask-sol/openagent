@@ -69,11 +69,21 @@ function convertMessages(messages: ProviderMessage[]): any[] {
 }
 
 function convertTools(tools: ProviderTool[]): any[] {
-  return tools.map((t) => ({
+  const out: any[] = tools.map((t) => ({
     name: t.function.name,
     description: t.function.description,
     input_schema: t.function.parameters,
   }));
+  // Opt-in: include Anthropic's server-side tools so Claude can use them
+  // natively. Wyrd's anthropic provider captures these as tool spans via
+  // server_tool_use / web_search_tool_result content blocks.
+  if (process.env.OPENAGENT_ANTHROPIC_WEB_SEARCH === "1") {
+    out.push({ type: "web_search_20250305", name: "web_search" });
+  }
+  if (process.env.OPENAGENT_ANTHROPIC_CODE_EXECUTION === "1") {
+    out.push({ type: "code_execution_20250522", name: "code_execution" });
+  }
+  return out;
 }
 
 async function* streamRequest(
@@ -89,7 +99,10 @@ async function* streamRequest(
   };
 
   if (options.systemPrompt) body.system = options.systemPrompt;
-  if (tools.length > 0) body.tools = convertTools(tools);
+  {
+    const converted = convertTools(tools);
+    if (converted.length > 0) body.tools = converted;
+  }
   if (options.temperature !== undefined) body.temperature = options.temperature;
 
   const baseUrl = options.baseUrl || "https://api.anthropic.com";
@@ -149,6 +162,30 @@ async function* streamRequest(
               yield {
                 type: "tool_call_start",
                 toolCall: { id: currentToolId, name: currentToolName, arguments: "" },
+              };
+            } else if (data.content_block?.type === "server_tool_use") {
+              // Anthropic-executed tools (web_search, code_execution).
+              // Emit a synthetic tool_executed event so observability layers
+              // (wyrd) can record what happened. We don't dispatch these —
+              // Anthropic runs them server-side.
+              currentToolId = data.content_block.id ?? "";
+              currentToolName = `anthropic.${data.content_block.name ?? "server_tool"}`;
+              toolArgBuffer = "";
+              yield {
+                type: "tool_call_start",
+                toolCall: { id: currentToolId, name: currentToolName, arguments: "" },
+              };
+            } else if (
+              data.content_block?.type === "web_search_tool_result" ||
+              data.content_block?.type === "code_execution_tool_result"
+            ) {
+              const name = data.content_block.type === "web_search_tool_result"
+                ? "anthropic.web_search"
+                : "anthropic.code_execution";
+              yield {
+                type: "tool_executed",
+                toolCall: { id: data.content_block.tool_use_id ?? "", name, arguments: "" },
+                toolResult: JSON.stringify(data.content_block.content ?? null),
               };
             }
             break;
@@ -216,7 +253,10 @@ async function completeRequest(
   };
 
   if (options.systemPrompt) body.system = options.systemPrompt;
-  if (tools.length > 0) body.tools = convertTools(tools);
+  {
+    const converted = convertTools(tools);
+    if (converted.length > 0) body.tools = converted;
+  }
   if (options.temperature !== undefined) body.temperature = options.temperature;
 
   const baseUrl = options.baseUrl || "https://api.anthropic.com";
