@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { getConfigDir } from "../config/settings.js";
 import { detectInstallMethod, isWindows } from "./platform.js";
 
-const CURRENT_VERSION = "0.1.61-20260510";
+const CURRENT_VERSION = "0.1.62-20260516";
 const CHECK_INTERVAL = 1000 * 60 * 60 * 4;
 const CHECK_FILE = "last-update-check.json";
 
