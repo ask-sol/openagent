@@ -1,9 +1,10 @@
 #Requires -Version 5.1
 $ErrorActionPreference = "Stop"
 
-$InstallDir = Join-Path $env:USERPROFILE ".openagent\app"
-$BinDir     = Join-Path $env:USERPROFILE ".openagent\bin"
-$BinShim    = Join-Path $BinDir "openagent.cmd"
+$InstallRoot = Join-Path $env:USERPROFILE ".openagent"
+$InstallDir  = Join-Path $InstallRoot "app"
+$BinDir      = Join-Path $InstallRoot "bin"
+$BinShim     = Join-Path $BinDir "openagent.cmd"
 
 function Write-Step($msg) { Write-Host "  $msg" -ForegroundColor Cyan }
 function Write-Ok($msg)   { Write-Host "  $msg" -ForegroundColor Green }
@@ -20,20 +21,88 @@ function Update-EnvPath {
   $env:Path = (@($machine, $user) | Where-Object { $_ } ) -join ";"
 }
 
+function Invoke-Native {
+  param(
+    [Parameter(Mandatory)][scriptblock]$Script,
+    [switch]$Quiet
+  )
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    if ($Quiet) {
+      & $Script 2>&1 | Out-Null
+    } else {
+      & $Script
+    }
+  } finally {
+    $ErrorActionPreference = $prev
+  }
+  return $LASTEXITCODE
+}
+
+function Read-Choice {
+  param([string]$Prompt, [string[]]$Keys)
+  while ($true) {
+    $resp = (Read-Host $Prompt).Trim().ToLower()
+    if ($resp -and $Keys -contains $resp) { return $resp }
+    Write-Warn "Please enter one of: $($Keys -join ', ')"
+  }
+}
+
+function Remove-FromUserPath($dir) {
+  $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+  if (-not $userPath) { return }
+  $parts = $userPath.Split(";") | Where-Object { $_ -and ($_ -ne $dir) }
+  $newPath = ($parts -join ";")
+  if ($newPath -ne $userPath) {
+    [System.Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+  }
+}
+
+function Uninstall-OpenAgent {
+  Write-Step "Uninstalling OpenAgent..."
+  if (Test-Path $InstallDir) { Remove-Item -Recurse -Force $InstallDir }
+  if (Test-Path $BinDir)     { Remove-Item -Recurse -Force $BinDir }
+  Remove-FromUserPath $BinDir
+  if ((Test-Path $InstallRoot) -and -not (Get-ChildItem -Force $InstallRoot)) {
+    Remove-Item -Force $InstallRoot
+  }
+  Write-Ok "OpenAgent removed."
+  Write-Host "  (Sessions and config under $InstallRoot were preserved if present.)"
+}
+
 Write-Host ""
 Write-Step "Installing OpenAgent..."
 Write-Host ""
+
+if (Test-Path $InstallDir) {
+  Write-Host ""
+  Write-Warn "OpenAgent is already installed at $InstallDir"
+  Write-Host ""
+  Write-Host "    [u] Update    — reinstall over existing"
+  Write-Host "    [r] Remove    — uninstall"
+  Write-Host "    [c] Cancel"
+  Write-Host ""
+  $choice = Read-Choice "  Choice [u/r/c]" @("u", "r", "c", "update", "remove", "cancel")
+  switch -Regex ($choice) {
+    "^(u|update)$" { Write-Step "Updating..."; Write-Host "" }
+    "^(r|remove)$" { Uninstall-OpenAgent; exit 0 }
+    "^(c|cancel)$" { Write-Host "  Cancelled."; exit 0 }
+  }
+}
 
 if (-not (Test-Cmd "node")) {
   Write-Warn "Node.js not found."
   if (Test-Cmd "winget") {
     Write-Step "Installing Node.js LTS via winget..."
-    winget install -e --id OpenJS.NodeJS.LTS --silent --accept-source-agreements --accept-package-agreements | Out-Null
+    $code = Invoke-Native -Quiet { winget install -e --id OpenJS.NodeJS.LTS --silent --accept-source-agreements --accept-package-agreements }
     Update-EnvPath
+    if ($code -ne 0) { Write-Err "winget install failed (exit $code)"; exit 1 }
   } elseif (Test-Cmd "choco") {
     Write-Step "Installing Node.js LTS via Chocolatey..."
-    choco install nodejs-lts -y | Out-Null
+    $code = Invoke-Native -Quiet { choco install nodejs-lts -y }
     Update-EnvPath
+    if ($code -ne 0) { Write-Err "choco install failed (exit $code)"; exit 1 }
   } else {
     Write-Err "Install Node.js 20+ manually: https://nodejs.org/en/download"
     exit 1
@@ -74,18 +143,10 @@ Copy-Item -Recurse (Join-Path $ScriptDir "bin")  (Join-Path $InstallDir "bin")
 Push-Location $InstallDir
 try {
   Write-Step "Installing dependencies (this can take a minute)..."
-  $npmOut = & npm install --loglevel=error 2>&1
-  if ($LASTEXITCODE -ne 0) {
-    Write-Err "npm install failed:"
-    $npmOut | Select-Object -Last 20 | ForEach-Object { Write-Host "    $_" }
-    exit 1
-  }
-  $tsxOut = & npm install tsx --loglevel=error 2>&1
-  if ($LASTEXITCODE -ne 0) {
-    Write-Err "Installing tsx failed:"
-    $tsxOut | Select-Object -Last 10 | ForEach-Object { Write-Host "    $_" }
-    exit 1
-  }
+  $code = Invoke-Native -Quiet { npm install --loglevel=error }
+  if ($code -ne 0) { Write-Err "npm install failed (exit $code). Rerun and watch output for the cause."; exit 1 }
+  $code = Invoke-Native -Quiet { npm install tsx --loglevel=error }
+  if ($code -ne 0) { Write-Err "Installing tsx failed (exit $code)."; exit 1 }
 } finally {
   Pop-Location
 }
