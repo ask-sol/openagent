@@ -18,7 +18,7 @@
   <img alt="Unique users" src="https://img.shields.io/badge/unique%20users-1%2C046-ec4899?style=for-the-badge" />
 </p>
 
-<p align="center"><sub>Tracking since 2026-04-19 • 322 clones and 152 unique users in the last 14 days • updated 2026-05-15</sub></p>
+<p align="center"><sub>Tracking since 2026-04-19 • 322 clones and 152 unique users in the last 14 days • updated 2026-05-16</sub></p>
 <!-- stats-end -->
 
 <p align="center">
